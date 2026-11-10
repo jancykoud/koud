@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "koud",
+  "description": "Jancy Koud Banga's project workflow plugin.",
+  "owner": {
+    "name": "Jancy Koud Banga"
+  },
+  "plugins": [
+    {
+      "name": "koud",
+      "description": "A gated project workflow: one brief, then stack, architecture, requirements, specs, test-first build, deploy and review.",
+      "source": "./"
+    }
+  ]
+}

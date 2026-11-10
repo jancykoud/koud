@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "track": "new",
+  "identity": {
+    "name": "Care Circle",
+    "one_liner": "One shared record for a family coordinating the care of a relative."
+  },
+  "problem": "Families coordinating care for a relative keep the plan in group chats, paper notes and each person's memory. Nobody is sure they are acting on the latest version, and a missed medication change is found out after the fact.",
+  "audience": [
+    {
+      "name": "Coordinating relative",
+      "who": "An adult child organising care from another city",
+      "need": "One record every family member and caregiver sees, so nobody acts on a stale copy"
+    },
+    {
+      "name": "Paid caregiver",
+      "who": "A home-care worker visiting several times a week",
+      "need": "Today's instructions and medication list without calling the family"
+    }
+  ],
+  "goals": [
+    "A family can run a relative's care from one shared record",
+    "A change made by one member is visible to every other member immediately"
+  ],
+  "non_goals": [
+    "Clinical decision support or medical advice",
+    "Integration with hospital record systems"
+  ],
+  "criteria": {
+    "items": [
+      {
+        "rank": 1,
+        "id": "technical-implementation",
+        "name": "Technical implementation",
+        "statement": "Access control is enforced in the database, and a member of one care circle cannot read another circle's record through any route."
+      },
+      {
+        "rank": 2,
+        "id": "design",
+        "name": "Design",
+        "statement": "A first-time caregiver finds today's medication list in under thirty seconds on a phone."
+      },
+      {
+        "rank": 3,
+        "id": "impact",
+        "name": "Impact",
+        "statement": "A medication change entered by one member appears for every other member without a refresh."
+      },
+      {
+        "rank": 4,
+        "id": "originality",
+        "name": "Originality",
+        "statement": "The shared record answers questions about the care plan from the record itself, with the same access rules as the record."
+      }
+    ]
+  },
+  "tech": {
+    "required": [
+      {
+        "name": "AWS Database",
+        "one_of": ["Aurora PostgreSQL", "Aurora DSQL", "DynamoDB"],
+        "reason": "The organisation's data already lives on AWS and must stay in one account."
+      },
+      {
+        "name": "Vercel or v0.app deployment",
+        "reason": "The team's existing deployment pipeline and preview workflow run on Vercel."
+      }
+    ],
+    "forbidden": [],
+    "preferred": [
+      {
+        "name": "v0",
+        "reason": "Fastest route to a first interface; not required."
+      }
+    ]
+  },
+  "constraints": {
+    "hosting": "Vercel for the front end, AWS for data",
+    "compliance": ["Health-related personal data: access is logged and limited to circle members"]
+  },
+  "dates": [
+    {
+      "label": "First usable version",
+      "at": "2027-01-15T17:00:00+01:00",
+      "kind": "hard"
+    }
+  ],
+  "unresolved": []
+}

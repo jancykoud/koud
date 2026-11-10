@@ -1,0 +1,40 @@
+{
+  "description": "koud — re-injects phase state at session start so /clear is free",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" inject-state",
+            "shell": "bash",
+            "async": false
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" deadline-pressure", "shell": "bash", "async": false }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" progress-stamp", "shell": "bash", "async": false }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" challenges-reminder", "shell": "bash", "async": false }
+        ]
+      }
+    ]
+  }
+}

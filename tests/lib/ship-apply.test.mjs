@@ -1,0 +1,108 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { selectTargets, applyShip } from '../../scripts/lib/ship-apply.mjs';
+import { readState, writeState } from '../../scripts/lib/state.mjs';
+import { createDefaultState } from '../../scripts/lib/schema.mjs';
+import { withTmpDir } from '../helpers/tmp.mjs';
+
+async function fixture(name) {
+  return JSON.parse(await readFile(new URL(`../fixtures/${name}`, import.meta.url), 'utf8'));
+}
+
+test('selectTargets picks vercel for a next-monolith frontend slot by default', async () => {
+  const stack = await fixture('h0-stack.json');
+  const targets = selectTargets({ ...stack, repo_shape: 'next-monolith' });
+  const frontend = targets.find((t) => t.kind === 'frontend');
+  assert.equal(frontend.target, 'vercel');
+});
+
+test('selectTargets honors a required slot naming a specific cloud, brief-first', async () => {
+  const stack = await fixture('h0-stack.json');
+  // h0-stack.json's slots[0] is "database", which deployableSlots() (Task 7, unmodified
+  // here) deliberately excludes -- see deploy-schema.test.mjs's "only the database slot is
+  // excluded" case. selectTargets is specified to reuse that same filter, so a slot the
+  // filter drops can never reach the brief-first check. slots[1] ("deploy") is a
+  // deployable slot, so it exercises the brief-first branch this test is actually about.
+  stack.slots[1] = { ...stack.slots[1], source: 'required', choice: 'AWS App Runner' };
+  const targets = selectTargets(stack);
+  assert.equal(targets.find((t) => t.slotId === stack.slots[1].id).target, 'aws');
+});
+
+async function seededProject(root, extra = {}) {
+  const state = createDefaultState({ pluginVersion: '0.1.0' });
+  state.project = { name: 'x', ...extra };
+  state.phases.stack.status = 'approved';
+  await writeState(root, state);
+}
+
+test('applyShip refuses to run before :stack is approved', async () => {
+  await withTmpDir(async (root) => {
+    const state = createDefaultState({ pluginVersion: '0.1.0' });
+    state.project = { name: 'x' };
+    await writeState(root, state); // stack.status stays not_started
+    const deploy = await fixture('h0-deploy.json');
+    await assert.rejects(() => applyShip(root, deploy, {}), /:stack.*approved/i);
+  });
+});
+
+test('applyShip writes deploy.json, sets project.deploy digest, and gates the phase', async () => {
+  await withTmpDir(async (root) => {
+    await seededProject(root);
+    const deploy = await fixture('h0-deploy.json');
+    const { artifacts } = await applyShip(root, deploy, { stamp: '2026-08-30T20-00-00Z' });
+    assert.deepEqual(artifacts, ['.koud/deploy.json']);
+
+    const written = JSON.parse(await readFile(new URL(`file://${root}/.koud/deploy.json`), 'utf8'));
+    assert.deepEqual(written, deploy);
+
+    const state = await readState(root);
+    assert.equal(state.project.deploy.primary_url, deploy.services[0].url);
+    assert.equal(state.project.deploy.ref, '.koud/deploy.json');
+    assert.equal(state.phases.ship.status, 'awaiting_approval');
+  });
+});
+
+test('applyShip dry run writes nothing', async () => {
+  await withTmpDir(async (root) => {
+    await seededProject(root);
+    const deploy = await fixture('h0-deploy.json');
+    const result = await applyShip(root, deploy, { dryRun: true });
+    assert.deepEqual(result.artifacts, ['.koud/deploy.json']);
+    await assert.rejects(() => readFile(new URL(`file://${root}/.koud/deploy.json`)));
+  });
+});
+
+test('applyShip refuses an invalid deploy payload', async () => {
+  await withTmpDir(async (root) => {
+    await seededProject(root);
+    await assert.rejects(() => applyShip(root, { services: [] }, {}), /refusing to apply/);
+  });
+});
+
+// Regression: validateDeploy now requires every service to be verified (Fix 1, final
+// whole-branch review). applyShip calls validateDeploy first, so an unverified deploy
+// payload must be rejected there -- it must never reach the phases.ship write below.
+test('applyShip refuses a deploy payload with an unverified service, and never sets phases.ship to awaiting_approval', async () => {
+  await withTmpDir(async (root) => {
+    await seededProject(root);
+    const deploy = await fixture('h0-deploy.json');
+    deploy.services[0].verified = false;
+    await assert.rejects(() => applyShip(root, deploy, {}), /not verified/);
+
+    const state = await readState(root);
+    assert.notEqual(state.phases.ship.status, 'awaiting_approval');
+  });
+});
+
+test('applyShip validates before checking the :stack precondition', async () => {
+  await withTmpDir(async (root) => {
+    // Both conditions are wrong at once: the deploy payload is invalid AND :stack is not
+    // approved. If validation runs first (matching stack-apply.mjs's order), the thrown
+    // error is the validation error, not the precondition error.
+    const state = createDefaultState({ pluginVersion: '0.1.0' });
+    state.project = { name: 'x' }; // stack.status stays not_started
+    await writeState(root, state);
+    await assert.rejects(() => applyShip(root, { services: [] }, {}), /refusing to apply/);
+  });
+});

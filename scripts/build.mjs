@@ -1,0 +1,98 @@
+#!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { mustHaveFeatures, nextFeature, buildContextBundle } from './lib/build-apply.mjs';
+import { readState, writeState, migrateStateFile } from './lib/state.mjs';
+import { requirementsPath, specsDir } from './lib/paths.mjs';
+
+const [subcommand, target, ...rest] = process.argv.slice(2);
+const idx = rest.indexOf('--feature');
+const featureId = idx === -1 ? undefined : rest[idx + 1];
+
+function usage() {
+  console.error('usage: build.mjs status <project-root> [--feature <FR-id>]');
+  console.error('       build.mjs gate <project-root>');
+  process.exit(2);
+}
+
+// nextFeature(..., { featureId }) returns null both when every must-have feature is
+// genuinely done AND when featureId doesn't resolve to any kept must-have feature (a
+// typo, or an FR-id on a non-must feature) -- see build-apply.mjs. status must not
+// conflate those into the same "everything done" message, or a stale --feature flag
+// would send the calling agent straight past the loop to the closing gate.
+function featureIdResolves(requirements, id) {
+  const owner = (requirements.features ?? []).find((f) =>
+    (f.requirements ?? []).some((r) => r.id === id));
+  if (!owner) return false;
+  return mustHaveFeatures(requirements).some((f) => f.slug === owner.slug);
+}
+
+async function loadRequirements(root) {
+  try {
+    return JSON.parse(await readFile(requirementsPath(root), 'utf8'));
+  } catch (err) {
+    console.error(err.code === 'ENOENT'
+      ? `no requirements.json at ${requirementsPath(root)} -- run /koud:requirements first`
+      : `${requirementsPath(root)} is not valid JSON`);
+    process.exit(1);
+  }
+}
+
+if (subcommand === 'status') {
+  const root = target ? path.resolve(target) : process.cwd();
+  const requirements = await loadRequirements(root);
+  await migrateStateFile(root);
+  const state = await readState(root);
+  const result = await nextFeature(root, requirements, [], { featureId });
+  if (result === null) {
+    if (featureId && !featureIdResolves(requirements, featureId)) {
+      console.error(
+        `FR-id "${featureId}" does not resolve to a must-have feature -- check it isn't a typo.`,
+      );
+      process.exit(1);
+    }
+    console.log('Every must-have feature is done. Run build.mjs gate to close the phase.');
+    process.exit(0);
+  }
+  const bundle = await buildContextBundle(root, result.feature);
+  console.log(`Next feature: ${result.feature.id} ${result.feature.title} (${result.feature.slug})`);
+  console.log(`Spec folder: ${path.join(specsDir(root), result.feature.dir)}`);
+  for (const [key, value] of Object.entries(bundle)) {
+    console.log(`  ${key}: ${value === null ? 'MISSING' : 'present'}`);
+  }
+} else if (subcommand === 'gate') {
+  const root = target ? path.resolve(target) : process.cwd();
+  const requirements = await loadRequirements(root);
+  await migrateStateFile(root);
+  const state = await readState(root);
+  if (state === null) { console.error('no state.json -- run /koud:init first'); process.exit(1); }
+  const remaining = await nextFeature(root, requirements);
+  if (remaining !== null) {
+    console.log(`Not done: ${remaining.feature.id} (${remaining.feature.slug}) still has unchecked tasks.`);
+    process.exit(1);
+  }
+  const verified = state.compliance?.required_tech_verified ?? {};
+  const outstanding = Object.entries(verified).filter(([, used]) => !used).map(([id]) => id);
+  const forbiddenFound = state.compliance?.forbidden_tech_found ?? [];
+  if (outstanding.length > 0 || forbiddenFound.length > 0) {
+    if (outstanding.length > 0) {
+      console.log('Required technology not yet verified (a manifest entry is not evidence):');
+      for (const id of outstanding) console.log(`  [ ] ${id}`);
+    }
+    if (forbiddenFound.length > 0) {
+      console.log('Forbidden technology found:');
+      for (const id of forbiddenFound) console.log(`  ! ${id}`);
+    }
+    process.exit(1);
+  }
+
+  const features = mustHaveFeatures(requirements);
+  const artifacts = features.map((f) => `${specsDir(root).replace(`${root}${path.sep}`, '')}/${f.dir}/tasks.md`);
+  await writeState(root, {
+    ...state,
+    phases: { ...state.phases, build: { ...state.phases.build, status: 'awaiting_approval', artifacts } },
+  });
+  console.log('Phase "build" is now awaiting_approval.');
+} else {
+  usage();
+}

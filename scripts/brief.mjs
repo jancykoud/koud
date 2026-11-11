@@ -2,9 +2,10 @@
 import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { validateBrief } from './lib/brief-schema.mjs';
-import { applyBrief } from './lib/brief-apply.mjs';
+import { applyBrief, diffBrief } from './lib/brief-apply.mjs';
 import { briefPath, KOUD_DIR } from './lib/paths.mjs';
 import { withoutInPlacePayload } from './lib/backup.mjs';
+import { CONSENT_EXIT_CODE, REPLACE_FLAG } from './lib/project-writes.mjs';
 
 const [subcommand, target, ...rest] = process.argv.slice(2);
 const flags = new Set(rest.filter((a) => a.startsWith('--')));
@@ -14,7 +15,7 @@ const DRAFT_FILE = 'brief.draft.json';
 
 function usage() {
   console.error('usage: brief.mjs validate <path-to-brief.json> [--json]');
-  console.error('       brief.mjs apply <project-root> [--brief <path>] [--dry-run]');
+  console.error('       brief.mjs apply <project-root> [--brief <path>] [--dry-run] [--replace]');
   process.exit(2);
 }
 
@@ -50,6 +51,22 @@ if (subcommand === 'validate') {
   const brief = await readJson(source);
   const dryRun = flags.has('--dry-run');
 
+  // A brief already on disk is one the user has seen, and usually approved. Replacing it
+  // with a different one is their decision: the preview says what changes, and a real
+  // apply refuses until --replace records that they were asked. A payload written in place
+  // has nothing older to compare against, so there is nothing to ask about.
+  let changes = [];
+  if (path.resolve(source) !== path.resolve(briefPath(root))) {
+    const current = await readFile(briefPath(root), 'utf8').then(JSON.parse).catch(() => null);
+    if (current !== null) changes = diffBrief(current, brief);
+  }
+  if (changes.length > 0 && !dryRun && !flags.has(REPLACE_FLAG)) {
+    console.error(`brief.mjs apply would replace the current brief — nothing was written.\n`);
+    for (const c of changes) console.error(`  ${c}`);
+    console.error(`\nShow these changes to the user and ask. If they agree, re-run with ${REPLACE_FLAG}.`);
+    process.exit(CONSENT_EXIT_CODE);
+  }
+
   try {
     const { artifacts, backedUp, wouldOverwrite } = await applyBrief(root, brief, { dryRun });
     console.log(dryRun ? 'Dry run — nothing was written. Would write:' : `Wrote ${artifacts.length} artifact(s):`);
@@ -60,6 +77,10 @@ if (subcommand === 'validate') {
     if (overwritten?.length > 0) {
       console.log('\nWould overwrite:');
       for (const w of overwritten) console.log(`  ! ${w}`);
+    }
+    if (dryRun && changes.length > 0) {
+      console.log(`\nChanges from the current brief — the user decides before any apply (${REPLACE_FLAG}):`);
+      for (const c of changes) console.log(`  ${c}`);
     }
     if (backedUp?.length > 0) {
       console.log('\nBacked up before overwriting:');

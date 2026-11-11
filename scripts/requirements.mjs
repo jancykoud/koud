@@ -5,13 +5,16 @@ import { validateRequirements } from './lib/requirements-schema.mjs';
 import { applyRequirements } from './lib/requirements-apply.mjs';
 import { requirementsPath, briefPath, architecturePath } from './lib/paths.mjs';
 import { withoutInPlacePayload } from './lib/backup.mjs';
+import {
+  writeModeFromFlags, projectPaths, renderConsentRequest, CONSENT_EXIT_CODE, ALLOW_FLAG, KOUD_ONLY_FLAG,
+} from './lib/project-writes.mjs';
 
 const [subcommand, target, ...rest] = process.argv.slice(2);
 const flags = new Set(rest.filter((a) => a.startsWith('--')));
 
 function usage() {
   console.error('usage: requirements.mjs validate <path-to-requirements.json> [--json]');
-  console.error('       requirements.mjs apply <project-root> [--requirements <path>] [--dry-run]');
+  console.error('       requirements.mjs apply <project-root> [--requirements <path>] [--dry-run] [--allow-project-writes | --koud-only]');
   process.exit(2);
 }
 
@@ -55,11 +58,29 @@ if (subcommand === 'validate') {
   const dryRun = flags.has('--dry-run');
 
   try {
+    // Anything this phase writes outside .koud/ is the user's decision, not the agent's.
+    // Without a flag recording that decision, a real apply refuses and lists the files.
+    const mode = writeModeFromFlags(flags);
+    const projectWrites = mode === 'ask' ? 'allow' : mode;
+    if (mode === 'ask') {
+      const preview = await applyRequirements(root, reqs, { brief, architecture, dryRun: true, projectWrites });
+      const outside = projectPaths(preview.artifacts);
+      if (outside.length > 0 && !dryRun) {
+        console.error(renderConsentRequest('requirements.mjs apply', outside, preview.wouldOverwrite));
+        process.exit(CONSENT_EXIT_CODE);
+      }
+    }
     const { artifacts, backedUp, skipped, wouldOverwrite } = await applyRequirements(
-      root, reqs, { brief, architecture, dryRun },
+      root, reqs, { brief, architecture, dryRun, projectWrites },
     );
     console.log(dryRun ? 'Dry run — nothing was written. Would write:' : `Wrote ${artifacts.length} artifact(s):`);
     for (const a of artifacts) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
+    const outsideKoud = projectPaths(artifacts);
+    if (dryRun && outsideKoud.length > 0) {
+      console.log(`\nOutside .koud/ (${outsideKoud.length}) — the user decides before any apply:`);
+      for (const a of outsideKoud) console.log(`  > ${a}`);
+      console.log(`  yes -> apply with ${ALLOW_FLAG}; no -> apply with ${KOUD_ONLY_FLAG} (files go under .koud/out/)`);
+    }
     // The consent gate: commands/requirements.md tells the agent to name these to the user
     // before applying, which it can only do if the preview actually reports them.
     const overwritten = withoutInPlacePayload(wouldOverwrite, root, source, '.koud/requirements.json');

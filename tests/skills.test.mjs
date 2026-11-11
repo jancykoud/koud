@@ -186,7 +186,7 @@ test('ui-design-principles names all four breakpoints', async () => {
 });
 
 test('both unevidenced skills say so, near the top', async () => {
-  for (const name of ['gherkin-requirements', 'openspec-workflow']) {
+  for (const name of ['gherkin-requirements']) {
     const md = await readSkill(name);
     const top = md.slice(0, Math.floor(md.length / 3));
     assert.match(top, /no (project|winner)[^.]*corpus|not evidence|craft, not evidence/i,
@@ -198,29 +198,6 @@ test('gherkin-requirements forbids hand-editing the generated feature files', as
   const md = await readSkill('gherkin-requirements');
   assert.match(md, /requirements\.json/);
   assert.match(md, /never hand-edit|do not (hand-)?edit/i);
-});
-
-test('openspec-workflow names the real package and the squatted one', async () => {
-  const md = await readSkill('openspec-workflow');
-  assert.ok(md.includes('@fission-ai/openspec'));
-  assert.match(md, /\bsquat/i);
-  // Compare the trap SECTION's heading position against the mechanics section's heading
-  // position, not a bare indexOf on the package name -- the frontmatter description is
-  // mandated by the brief to contain '@fission-ai/openspec' too, which pins that bare
-  // string's first occurrence near the top of the file regardless of where the body's
-  // trap section actually sits. Heading positions aren't polluted by the frontmatter.
-  const trapAt = md.indexOf('## The package trap');
-  const proposalAt = md.indexOf('## Proposal');
-  assert.ok(trapAt !== -1, 'the package trap needs its own heading');
-  assert.ok(proposalAt !== -1, 'the proposal mechanics need their own heading');
-  assert.ok(trapAt < proposalAt,
-    'the trap comes before the mechanics — reading it late is reading it too late');
-});
-
-test('openspec-workflow explains why a deferred phase is not a failed phase', async () => {
-  const md = await readSkill('openspec-workflow');
-  const deferred = md.slice(md.indexOf('## The deferred path'));
-  assert.match(deferred, /optional|must not fail|own outputs/i);
 });
 
 test('the ship skills exist', async () => {
@@ -306,4 +283,18 @@ test('test-driven-build keeps progress in tasks.md and reviews before ticking a 
 test('test-driven-build depends on no other plugin', async () => {
   const content = await readSkill('test-driven-build');
   assert.doesNotMatch(content, /superpowers/);
+});
+
+test('test-driven-build treats a failing prove task as a finding, not a fix', async () => {
+  const md = await readSkill('test-driven-build');
+  assert.match(md, /## Prove tasks/);
+  assert.match(md, /That is a finding,\s+not a task/);
+  assert.match(md, /Say what you would start and why/);
+  assert.match(md, /never an uncommitted change that was already in the worktree/);
+});
+
+test('project-brief treats a re-run as a change to an agreed document', async () => {
+  const md = await readSkill('project-brief');
+  assert.match(md, /## A re-run replaces something the user approved/);
+  assert.match(md, /A value is read or it is absent/);
 });

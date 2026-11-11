@@ -5,7 +5,7 @@ const run = promisify(execFile);
 
 export const DEFAULT_TOOLS = [
   { name: 'git', cmd: 'git', args: ['--version'], needate: 'everything', blocking: true },
-  { name: 'node', cmd: 'node', args: ['--version'], needate: 'the plugin itself, JavaScript stacks, OpenSpec', blocking: true },
+  { name: 'node', cmd: 'node', args: ['--version'], needate: 'the plugin itself, JavaScript stacks', blocking: true },
   { name: 'python3', cmd: 'python3', args: ['--version'], needate: 'Python stacks', blocking: false },
   { name: 'poetry', cmd: 'poetry', args: ['--version'], needate: 'Python dependency management', blocking: false },
   { name: 'uv', cmd: 'uv', args: ['--version'], needate: 'Python dependency management (alternative to poetry)', blocking: false },

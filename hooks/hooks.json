@@ -1,5 +1,5 @@
 {
-  "description": "koud \u2014 re-injects phase state at session start so /clear is free, and keeps secrets files out of the conversation",
+  "description": "koud \u2014 re-injects phase state at session start so /clear is free, keeps secrets files out of the conversation, and asks before an apply writes outside .koud/ or a command deploys",
   "hooks": {
     "SessionStart": [
       {
@@ -21,6 +21,17 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" guard-secrets",
+            "shell": "bash",
+            "async": false
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" guard-consent",
             "shell": "bash",
             "async": false
           }

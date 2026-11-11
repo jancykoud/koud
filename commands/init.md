@@ -22,13 +22,19 @@ yes/no. Never assume a yes. There is no force flag; if the user declines an acti
 that action is simply left alone and the rest of init proceeds. Two different kinds of
 action need approval, and they need different framing:
 
-**Existing files you did not write** (for example `AGENTS.md`, `CLAUDE.md`). For each
-one:
+**Files at the project root** (`AGENTS.md`, `CLAUDE.md`) — whether they already exist or
+would be created. The root of the project is not the plugin's: a new file there needs a
+yes as much as a changed one. For each one:
 
-- Show the user the file's current content (or the relevant part, if it is long).
-- Explain exactly what will be added — always confined between
+- If it exists, show the user its current content (or the relevant part, if it is long).
+  If it does not, say it would be created.
+- Explain exactly what will be written — always confined between
   `<!-- BEGIN:koud -->` and `<!-- END:koud -->`.
 - Ask whether to proceed with that specific file.
+
+Declining both is a normal answer, and the right one on a repository shared with people
+who have not agreed to these files: the session-start hook already tells Claude Code where
+the phase state is, so nothing later depends on them.
 
 **Initializing git** (only proposed when the project is not already a git repo). There
 is no file content to show here. Explain that the project isn't currently a git

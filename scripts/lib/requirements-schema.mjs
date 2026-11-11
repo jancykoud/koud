@@ -1,6 +1,14 @@
 export const REQUIREMENTS_SCHEMA_VERSION = 1;
 export const PRIORITIES = ['must', 'should', 'wont'];
 export const FR_ID_RE = /^FR-\d+\.\d+$/;
+/**
+ * Whether a requirement is work or evidence. On a project that already exists, most
+ * requirements describe behaviour that is already there: the test for one of those is
+ * expected to pass at once, and a "write the failing test first" task would be a lie.
+ * Absent means 'to_build', which is the only honest default for a new project.
+ */
+export const REQUIREMENT_STATES = ['to_build', 'delivered'];
+export const isDelivered = (r) => r?.state === 'delivered';
 const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const isNonEmptyString = (v) => typeof v === 'string' && v.trim() !== '';
@@ -37,6 +45,16 @@ export function validateRequirements(doc, options = {}) {
   crossCheckBrief(features, brief, errors, warnings);
   crossCheckArchitecture(features, architecture, errors, warnings);
 
+  // An existing project where no requirement says what is already there: every task would
+  // be rendered as new work, including the ones that only need proving.
+  if (brief?.track === 'existing') {
+    const all = features.flatMap((f) => (Array.isArray(f?.requirements) ? f.requirements : []));
+    if (all.length > 0 && all.every((r) => r?.state === undefined)) {
+      warnings.push('the brief is on the existing track but no requirement carries a state — ' +
+        'mark each one "delivered" (already in the code, to be proven) or "to_build", or every task is rendered as new work');
+    }
+  }
+
   if (!features.some((f) => f?.demo_moment === true)) {
     warnings.push('no feature is flagged demo_moment — one feature should be the scenario that makes the one-liner in the brief obviously true');
   }
@@ -69,7 +87,7 @@ function validateFeature(f, at, frIds, slugs, scenarioIds, errors) {
     errors.push(`${at}.component_refs must be an array of component ids`);
   }
 
-  // The slug becomes features/<slug>.feature, specs/NNNN-<slug>/ and openspec/changes/<slug>/.
+  // The slug becomes features/<slug>.feature and specs/NNNN-<slug>/.
   if (!isNonEmptyString(f.slug) || !SLUG_RE.test(f.slug)) {
     errors.push(`${at}.slug "${f.slug}" must be lower-kebab-case — it becomes a filename in three places`);
   } else if (slugs.has(f.slug)) {
@@ -108,6 +126,9 @@ function validateFeature(f, at, frIds, slugs, scenarioIds, errors) {
       own.add(r.id);
     }
     if (!isNonEmptyString(r.statement)) errors.push(`${rat}.statement must be a non-empty string`);
+    if (r.state !== undefined && !REQUIREMENT_STATES.includes(r.state)) {
+      errors.push(`${rat}.state "${r.state}" is not one of ${REQUIREMENT_STATES.join(', ')}`);
+    }
     if (r.invariant_refs !== undefined && !Array.isArray(r.invariant_refs)) {
       errors.push(`${rat}.invariant_refs must be an array of invariant ids`);
     }

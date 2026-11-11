@@ -51,17 +51,17 @@ the top level. The plugin needs Node.js 20 or later and has no dependencies to i
 
 | Command | What it does |
 |---|---|
-| `/koud:init [--dry-run]` | Sets up (or adopts) the workflow in this project. Never overwrites a file without a per-file yes; there is no force flag. |
+| `/koud:init [--dry-run]` | Sets up (or adopts) the workflow in this project. Never creates or changes a file at the project root without a per-file yes; there is no force flag. |
 | `/koud:next` | Resolves which phase comes next from on-disk state and starts it. Reports drift when state and the filesystem disagree. |
 | `/koud:status` | Phase board, track, deadline, stack, required technology not yet verified, missing tools. Changes nothing. |
 | `/koud:brief [--track new\|existing]` | Describes the project once. On an existing repository it reads the code for evidence before asking anything. |
 | `/koud:stack` | Resolves the technology stack: what the brief requires first, then what it prefers, then defaults, every slot with a reason. |
-| `/koud:architect` | Designs the system: architecture, data model, three diagram formats and the `AGENTS.md` invariants, all rendered from one validated payload. |
-| `/koud:requirements` | Turns the architecture into FR ids with acceptance criteria, a test matrix and executable Gherkin scenarios. |
-| `/koud:spec` | Turns requirements into per-feature specs (requirements, design, tasks), plus OpenSpec change proposals when that CLI is reachable. |
-| `/koud:build [--feature <FR-id>]` | Implements the must-have features one at a time, test-first, running `:check` after each one. |
+| `/koud:architect` | Designs the system — or, on an existing project, describes the one the code already has, gaps included: architecture, data model, three diagram formats and the `AGENTS.md` invariants, all rendered from one validated payload. |
+| `/koud:requirements` | Turns the architecture into FR ids with acceptance criteria, a test matrix and executable Gherkin scenarios. On an existing project each requirement says whether it is already delivered or still to build. |
+| `/koud:spec` | Turns requirements into per-feature specs (requirements, design, tasks) under `.koud/specs/`. Runs no external tool. |
+| `/koud:build [--feature <FR-id>]` | Works the must-have features one at a time: new behaviour test-first, existing behaviour proven by a test that is expected to pass, `:check` after each feature. |
 | `/koud:check` | Verifies with `file:line` evidence that the code really uses the technology the brief requires and none it forbids. Safe to run any time; does not gate. |
-| `/koud:ship` | Picks a deploy target, writes Dockerfiles, Terraform and CI, deploys, and verifies every URL with a real request before the gate. |
+| `/koud:ship` | Proposes a deployment plan and stops; once approved, writes Dockerfiles, Terraform and CI, deploys, and verifies every URL with a real request before the gate. |
 | `/koud:review` | Runs `/code-review` and an architecture-level reviewer, and merges both into a validated `review.json`. Refuses the gate while any finding is `blocking`. |
 | `/koud:log <text>` | Appends a timestamped entry to `challenges.md`, the running log of problems met and how they were solved. |
 
@@ -70,8 +70,8 @@ exceptions: one is a repeatable audit, the other a running log.
 
 ## What each phase produces
 
-Working documents land in `.koud/`; reader-facing ones land in `docs/` and the repository
-root.
+Working documents land in `.koud/`; reader-facing ones land in `docs/`, `features/` and the
+repository root — but only if you say so. See [Where files go](#where-files-go).
 
 | Phase | Artifacts |
 |---|---|
@@ -86,6 +86,29 @@ root.
 
 The shape and rules of every payload are in [`docs/contracts.md`](docs/contracts.md).
 
+## Where files go
+
+`.koud/` belongs to the plugin. Everything else belongs to the project, and nothing is
+written there without your answer.
+
+`:init`, `:architect` and `:requirements` are the phases that want files outside `.koud/`
+(`AGENTS.md`, `CLAUDE.md`, `docs/`, `features/`). Each one previews the list, stops, and
+asks. You have two answers:
+
+| Answer | What happens | When |
+|---|---|---|
+| Yes | The files are written where listed. You confirm the command in a permission prompt. | Your own project. |
+| No | The same files are written under `.koud/out/`, at the same relative path. Nothing in the project moves, and later phases read them from there. | A repository shared with people who have not agreed to these files. |
+
+The scripts enforce this, not just the instructions: an apply that would write outside
+`.koud/` without `--allow-project-writes` or `--koud-only` exits with code 3 and writes
+nothing. The same holds for replacing a brief that already exists (`--replace`).
+
+`.koud/backups/` holds a verbatim copy of every file a phase replaced. It is excluded from
+Git by a rule in `.koud/.gitignore`, because a backup can contain an uncommitted edit you
+never meant to publish. To keep the whole of `.koud/` out of a shared repository, add
+`.koud/` to `.git/info/exclude`.
+
 ## Rules the validators enforce
 
 These are mechanical, not conventions:
@@ -97,6 +120,10 @@ These are mechanical, not conventions:
 - Every date carries an explicit UTC offset. A floating `2027-01-15T17:00:00` is rejected.
 - A success criterion no feature claims fails `:requirements`: nothing would be built to
   meet it.
+- A requirement's `state`, when given, is `delivered` or `to_build`; a delivered one is
+  rendered as a test expected to pass, not as work.
+- An apply never writes outside `.koud/`, and never replaces an existing brief, without a
+  flag recording the user's decision.
 - A service marked `verified` in `deploy.json` must carry when and how it was verified.
 - `:review` cannot reach its gate while any finding is `blocking`.
 
@@ -106,6 +133,7 @@ These are mechanical, not conventions:
 |---|---|
 | Session start | Injects the project, track, deadline, success criteria, approved phases, next phase and required technology. Silent in a project with no `.koud/`. |
 | Before a file tool or a shell command | Denies reading secrets files (`.env`, private keys, keystores) and asks before editing them or running a command that names them. Templates such as `.env.example` pass. Only acts in a project with a `.koud/` directory. |
+| Before a shell command | Turns three kinds of command into a permission prompt: an apply that writes outside `.koud/`, an apply that replaces the brief, and a deploy (`vercel deploy`, `gcloud run deploy`, `railway up`, `terraform apply`, `prisma migrate deploy` and the like). Only acts in a project with a `.koud/` directory. |
 | After a `git commit` | Stamps the commit and the elapsed time into the state. |
 | Stop | When the session hit real failures and `challenges.md` was not updated, lists up to three of them and points at `/koud:log`. |
 
@@ -114,18 +142,24 @@ exits cleanly.
 
 ## Status and limits
 
-This is version 0.2.0.
+This is version 0.3.0.
 
-- **Tried once for real.** `:init` and `:brief` have run in Claude Code on one existing
-  monorepo (an API, a web app and a mobile app). The phases after `:brief` have only been
-  exercised through the test suite and from the command line with example payloads.
+- **Run once end to end, short of deployment.** `:init` through `:build` have run in Claude
+  Code on one existing monorepo (an API, a web app and a mobile app); `:build` was run for
+  one requirement. `:ship` and `:review` have only been exercised through the test suite
+  and from the command line with example payloads. The consent prompts added in 0.3.0 are
+  covered by tests but have not yet been seen in a live session.
+- **The prompts depend on the permission mode.** The hooks answer "ask". In a mode where
+  Claude Code approves tool calls on its own, do not rely on being asked: the scripts'
+  refusal without a consent flag still holds, the prompt may not.
 - **The frontend and backend skills are written around Next.js and FastAPI**, and cite one
-  reference project. On another stack the workflow and its validators apply; those skills
-  only partly do.
+  reference project. On an existing project the architect is told to describe the code and
+  treat those skills as vocabulary; on a new project with another stack they only partly
+  apply.
 - **`:ship` falls back to Vercel and Cloud Run** when the brief requires no cloud. Treat
   its suggestion as a starting point.
-- **The secrets guard is a tripwire, not a sandbox.** It catches the ordinary cases; a
-  command built to evade it will.
+- **The guards are tripwires, not a sandbox.** They catch the ordinary cases; a command
+  built to evade them will.
 
 Planned next: stack-neutral architecture skills, a browser test loop, a security audit
 phase, and a map of what can be automated by a script, a workflow or an agent.

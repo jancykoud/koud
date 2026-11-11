@@ -48,6 +48,11 @@ time, and skip anything the user already said:
 6. Is any technology imposed, forbidden or preferred — and why?
 7. Is there a delivery date, a budget or a compliance constraint?
 
+**On a re-run, do not skip the questions because a brief exists.** Read the current
+`brief.json`, keep what still holds, and ask about what the new fields need — a scope, a
+kind for each criterion, a role for each technology are the user's to confirm, not yours
+to fill in silently.
+
 If the user cannot answer something, do not invent an answer: record the question in
 `unresolved`. "Nothing formal" is not the same as "nothing applies" — a constraint the
 user has not checked stays an open question.
@@ -71,6 +76,9 @@ matter most, because they are where briefs go wrong:
   something `:stack` must justify slot by slot.
 - **Every required technology has a `reason`.** A constraint with no reason outlives the
   fact that justified it.
+- **Every concrete value is one you read or were told.** An amount, a threshold, a count,
+  a version: from the code, a document in the repository, or the user's words. If none of
+  them gives it, leave the number out or put the question in `unresolved`.
 - **Every date carries an explicit UTC offset.** A floating `2027-01-15T17:00:00` is a
   different instant in every time zone.
 
@@ -81,15 +89,24 @@ matter most, because they are where briefs go wrong:
 The script prints every problem at once. Fix them all, then re-run. **At most two
 retries** — a third is a loop, not a fix, so stop and show the user the errors.
 
-## Step 5 — Preview, then apply
+## Step 5 — Preview, and stop if a brief already exists
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/brief.mjs apply . --brief .koud/brief.draft.json --dry-run`
 
-If it reports it would overwrite an existing `brief.json`, `brief.md` or `project.md`,
-tell the user which files **before** applying — on a first run there is nothing to
-overwrite and it says nothing. Then:
+**First run** — nothing is on disk yet and the preview reports nothing to replace. Apply:
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/brief.mjs apply . --brief .koud/brief.draft.json`
+
+**Re-run** — the preview prints `Changes from the current brief`. A brief already on disk
+is one the user has read, and usually approved, and every later phase was built on it.
+**Stop.** Show the user those changes in plain words — not the whole brief again, only
+what differs and why you changed it — and ask whether to replace it. Only after a yes:
+
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/brief.mjs apply . --brief .koud/brief.draft.json --replace`
+
+The user will be prompted to confirm that command; that is deliberate. Without `--replace`
+the script refuses (exit code 3, nothing written). If the user says no, leave the draft
+where it is and say so.
 
 The apply backs up whatever it replaces, then removes the draft.
 

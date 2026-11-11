@@ -11,15 +11,35 @@ Ship the application.
 gate, ask before shipping something unfinished — it is not this command's job to block
 that outright, only to make sure the user is choosing it knowingly.
 
-## Step 2 — Dispatch the deploy engineer
+## Step 2 — Get a plan, and stop
 
-Dispatch the `deploy-engineer` agent. Tell it to start from
+Dispatch the `deploy-engineer` agent **in plan mode**: tell it to return a deployment plan
+and to write nothing and deploy nothing yet. Tell it to start from
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/ship.mjs suggest .` for a deterministic per-slot target
-starting point before applying `deploy-targets`'s fuller judgment. It writes the infra
-files itself, actually deploys, and `curl`s every URL — it does not stop at "the config
-looks right."
+before applying `deploy-targets`'s fuller judgment, and to find out first what is already
+deployed — an existing project usually has a live environment, and its configuration is in
+the repository.
 
-## Step 3 — Validate, then preview and apply
+**Stop here.** Show the user the plan:
+
+- every service, its target, and **which environment** the deploy reaches — a preview, a
+  staging service, or production that real users are on;
+- every file that would be created or changed (Dockerfiles, `infra/`, workflows,
+  `.env.example`), saying which already exist;
+- every command that would run, in order;
+- what it could not determine.
+
+Ask whether to go ahead. If production is involved, ask about it by name: "this replaces
+the production release of the API — yes?" A general yes to the plan is not a yes to that.
+
+## Step 3 — Execute what was approved
+
+Dispatch the `deploy-engineer` agent again with the approved plan. It writes the files the
+user agreed to, deploys, and `curl`s every URL — it does not stop at "the config looks
+right." Each deploy command prompts the user to confirm; that is deliberate. If the user
+declines one, that service stays undeployed and is reported as such.
+
+## Step 4 — Validate, then preview and apply
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/ship.mjs apply . --dry-run`
 
@@ -28,7 +48,7 @@ applying. Then:
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/ship.mjs apply .`
 
-## Step 4 — A blocked deploy is not a failure to hide
+## Step 5 — A blocked deploy is not a failure to hide
 
 If any service is not `verified: true` — missing CLI, missing auth, a failed build —
 leave `phases.ship` at `in_progress` (do not run the apply above until every service the
@@ -37,7 +57,7 @@ and tell the user what to run to unblock it. **A deploy that has not been fetche
 successfully is not shipped.** Docker Compose is an acceptable target on its own, not only
 a stopgap — degrading to it is a legitimate outcome, not a partial failure.
 
-## Step 5 — Stop at the gate
+## Step 6 — Stop at the gate
 
 Show the user every service's URL and verification status. Ask whether to proceed. **Do
 not continue to `:review` without an explicit yes.**

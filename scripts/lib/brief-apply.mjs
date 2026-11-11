@@ -261,3 +261,34 @@ export async function applyBrief(root, brief, { dryRun = false, now = new Date()
 
   return { artifacts, backedUp, backupStamp: set.stamp };
 }
+
+/**
+ * What differs between two briefs, as short human-readable lines — the preview a re-run of
+ * :brief shows before it replaces a brief the user already approved. One level below the
+ * top-level sections, which is where a reader recognises the change ("tech.required",
+ * "criteria.items") without being handed a JSON diff.
+ */
+export function diffBrief(before, after) {
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const size = (v) => (Array.isArray(v) ? ` (${v.length} entr${v.length === 1 ? 'y' : 'ies'})` : '');
+  const out = [];
+  const walk = (a, b, prefix, depth) => {
+    const keys = [...new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])];
+    for (const k of keys) {
+      const at = prefix === '' ? k : `${prefix}.${k}`;
+      const inA = a !== undefined && a !== null && k in a;
+      const inB = b !== undefined && b !== null && k in b;
+      if (inA && !inB) out.push(`- ${at} removed`);
+      else if (!inA && inB) out.push(`+ ${at} added${size(b[k])}`);
+      else if (!same(a[k], b[k])) {
+        if (depth > 0 && isObj(a[k]) && isObj(b[k])) walk(a[k], b[k], at, depth - 1);
+        else if (Array.isArray(a[k]) && Array.isArray(b[k])) {
+          out.push(`~ ${at} changed (${a[k].length} -> ${b[k].length} entr${b[k].length === 1 ? 'y' : 'ies'})`);
+        } else out.push(`~ ${at} changed`);
+      }
+    }
+  };
+  walk(isObj(before) ? before : {}, isObj(after) ? after : {}, '', 1);
+  return out;
+}

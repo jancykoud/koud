@@ -192,23 +192,29 @@ test('the architect command exists', async () => {
   assert.ok(files.includes('architect.md'), 'missing commands/architect.md');
 });
 
-test('the architect command dry-runs before it applies', async () => {
+test('the architect command previews, stops for the user, and only then applies with a recorded decision', async () => {
   const md = await readCommand('architect.md');
   const dryRun = md.indexOf('--dry-run');
-  // 'apply .`' (inline-code close) singles out the real apply command, not the
-  // '--dry-run' line above it, which also contains the substring 'apply .'.
-  const apply = md.indexOf('apply .`');
-  assert.ok(dryRun !== -1, 'the dry-run flag must be shown to the user');
-  assert.ok(apply !== -1, 'the real apply command must be shown to the user');
-  assert.ok(dryRun < apply,
-    'the preview must come before the write, or the warning arrives too late');
+  const stop = md.indexOf('**Stop here.**');
+  const allow = md.indexOf('apply . --allow-project-writes`');
+  const koudOnly = md.indexOf('apply . --koud-only`');
+  assert.ok(dryRun !== -1 && stop !== -1 && allow !== -1 && koudOnly !== -1,
+    'the preview, the stop and both apply forms must all be shown');
+  assert.ok(dryRun < stop && stop < allow && stop < koudOnly,
+    'the user is asked between the preview and any write');
+  assert.equal(md.includes('apply .`'), false,
+    'a bare apply writes outside .koud without a decision, and the script refuses it');
+  assert.match(md, /Never pass\s+`--allow-project-writes` on your own judgement/);
+  assert.match(md, /Outside \.koud\//);
 });
 
 test('the architect command stops at the gate', async () => {
   const md = await readCommand('architect.md');
-  const gate = md.slice(md.indexOf('## Step 5'));
+  const gate = md.slice(md.lastIndexOf('## Step'));
   assert.match(gate, /explicit yes/i);
-  assert.match(gate, /\bshort\b/, 'it must tell the user a short AGENTS.md is legitimate');
+  assert.match(gate, /\bshort\b/, 'it must tell the user a short invariant list is legitimate');
+  assert.match(gate, /your proposal and not read\s+from the brief or the code/,
+    'guessed values must be listed apart from found ones');
 });
 
 // --- requirements.md ---------------------------------------------------------------------
@@ -230,16 +236,20 @@ test('the requirements command stops at the gate', async () => {
   assert.match(md.slice(md.lastIndexOf('## Step')), /explicit yes/i);
 });
 
-test('the requirements command dry-runs before it applies', async () => {
+test('the requirements command previews, stops for the user, and only then applies with a recorded decision', async () => {
   const md = await readCommand('requirements.md');
   const dryRun = md.indexOf('--dry-run');
-  // 'apply .`' (inline-code close) singles out the real apply command, not the
-  // '--dry-run' line above it, which also contains the substring 'apply .'.
-  const apply = md.indexOf('apply .`');
-  assert.ok(dryRun !== -1, 'the dry-run flag must be shown to the user');
-  assert.ok(apply !== -1, 'the real apply command must be shown to the user');
-  assert.ok(dryRun < apply,
-    'the preview must come before the write, or the warning arrives too late');
+  const stop = md.indexOf('**Stop here.**');
+  const allow = md.indexOf('apply . --allow-project-writes`');
+  const koudOnly = md.indexOf('apply . --koud-only`');
+  assert.ok(dryRun !== -1 && stop !== -1 && allow !== -1 && koudOnly !== -1,
+    'the preview, the stop and both apply forms must all be shown');
+  assert.ok(dryRun < stop && stop < allow && stop < koudOnly,
+    'the user is asked between the preview and any write');
+  assert.equal(md.includes('apply .`'), false,
+    'a bare apply writes outside .koud without a decision, and the script refuses it');
+  assert.match(md, /Never pass\s+`--allow-project-writes` on your own judgement/);
+  assert.match(md, /Outside \.koud\//);
 });
 
 // --- spec.md ------------------------------------------------------------------------------
@@ -261,29 +271,6 @@ test('the spec command dry-runs before it applies', async () => {
     'the preview must come before the write, or the warning arrives too late');
 });
 
-test('the spec command treats a deferred OpenSpec as finishable, not blocked', async () => {
-  const md = await readCommand('spec.md');
-  const deferred = md.slice(md.indexOf('DEFERRED'));
-  // Round-1 review: the original alternation's `|complete` branch matched "the triad is
-  // complete" even inside prose that says the phase itself is blocked, and the negative
-  // check only caught the literal string "fail the phase" — blocking prose need not contain
-  // it. Anchor on the specific phrase this file actually uses instead of a broad alternation.
-  assert.match(deferred, /treat\s+the\s+phase\s+as\s+finishable/i);
-  assert.ok(!/\bfail the phase\b/i.test(deferred));
-});
-
-test('the spec command names the real OpenSpec package and warns about the stub', async () => {
-  const md = await readCommand('spec.md');
-  assert.ok(md.includes('@fission-ai/openspec'));
-  assert.match(md, /squat|stub/i);
-});
-
-test('the spec command explains that the OpenSpec proposal depends on the CLI, unlike the triad', async () => {
-  const md = await readCommand('spec.md');
-  assert.match(md, /depends on|contingent on|dependent on/i);
-  assert.match(md, /\bCLI\b/);
-});
-
 test('the spec command stops at the gate', async () => {
   const md = await readCommand('spec.md');
   assert.match(md.slice(md.lastIndexOf('## Step')), /explicit yes/i);
@@ -291,13 +278,12 @@ test('the spec command stops at the gate', async () => {
 
 // --- build.md ------------------------------------------------------------------------
 
-test(':build command file names the tasks.md-is-the-plan contract and never re-reads openspec', async () => {
+test(':build command file names the tasks.md-is-the-plan contract and mentions no external spec tool', async () => {
   const content = await readCommand('build.md');
   assert.match(content, /test-driven-build/);
   assert.doesNotMatch(content, /superpowers/, 'the build must not depend on another plugin');
   assert.match(content, /tasks\.md/);
-  assert.doesNotMatch(content, /openspec\/changes/,
-    'the build deliberately does not read the OpenSpec proposals');
+  assert.doesNotMatch(content, /openspec/i, 'OpenSpec was removed in 0.3.0');
 });
 
 // --- check.md ------------------------------------------------------------------------
@@ -402,4 +388,81 @@ test('the brief command asks for the scope first and separates core from tooling
   assert.match(questions, /1\. Does this brief cover the whole product/);
   assert.match(md, /"role": "tooling"/);
   assert.match(md, /"kind": "outcome"/);
+});
+
+// --- 0.3.0: what the first full run on an existing project showed --------------------------
+
+test('no command, agent or skill mentions OpenSpec any more', async () => {
+  const { readdir, readFile } = await import('node:fs/promises');
+  const roots = ['commands', 'agents', 'skills', 'scripts', 'hooks', 'docs'];
+  const offenders = [];
+  async function walk(dir) {
+    for (const entry of await readdir(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) await walk(rel);
+      else if (/openspec/i.test(await readFile(new URL(`../${rel}`, import.meta.url), 'utf8'))) offenders.push(rel);
+    }
+  }
+  for (const r of roots) await walk(r);
+  assert.deepEqual(offenders, []);
+});
+
+test('the spec command writes only under .koud and runs no external tool', async () => {
+  const md = await readCommand('spec.md');
+  assert.match(md, /runs no external tool, installs\s+nothing and touches no file outside `\.koud\/`/);
+  assert.match(md, /\*\*prove\*\* task/);
+});
+
+test('the brief command stops before replacing a brief that already exists', async () => {
+  const md = await readCommand('brief.md');
+  const stop = md.indexOf('**Stop.**');
+  const replace = md.indexOf('--replace`');
+  assert.ok(stop !== -1 && replace !== -1 && stop < replace);
+  assert.match(md, /do not skip the questions because a brief exists/);
+  assert.match(md, /Every concrete value is one you read or were told/);
+});
+
+test('the requirements command separates delivered from to_build and forbids invented values', async () => {
+  const md = await readCommand('requirements.md');
+  assert.match(md, /`"delivered"`/);
+  assert.match(md, /`"to_build"`/);
+  assert.match(md, /When in doubt it is `to_build`/);
+  assert.match(md, /A value taken from a seed file or a test fixture is a test value/);
+});
+
+test('the build command tells prove from build, announces services and commits only its own files', async () => {
+  const md = await readCommand('build.md');
+  assert.match(md, /\*\*Prove\*\* — behaviour the project already has/);
+  assert.match(md, /Report it to the user with the failing output before changing any code/);
+  assert.match(md, /Say before you start anything that outlives the command/);
+  assert.match(md, /Do not commit what is not this task/);
+});
+
+test('the init command asks before creating a file at the project root, not only before changing one', async () => {
+  const md = await readCommand('init.md');
+  assert.match(md, /whether they already exist or\s+would be created/);
+  assert.match(md, /Declining both is a normal answer/);
+});
+
+test('the architect agent describes an existing project instead of redesigning it, and labels its own values', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const md = await readFile(new URL('../agents/solution-architect.md', import.meta.url), 'utf8');
+  assert.match(md, /## On an existing project, describe — do not redesign/);
+  assert.match(md, /Where the code and a\s+skill disagree, the code is the architecture/);
+  assert.match(md, /## Every value is read, or labelled/);
+  assert.match(md, /my proposals, not read from the project/);
+});
+
+test('the ship command gets a plan and stops before anything is written or deployed', async () => {
+  const md = await readCommand('ship.md');
+  const plan = md.indexOf('in plan mode');
+  const stop = md.indexOf('**Stop here.**');
+  const execute = md.indexOf('## Step 3 — Execute what was approved');
+  assert.ok(plan !== -1 && stop !== -1 && execute !== -1 && plan < stop && stop < execute);
+  assert.match(md, /which environment/);
+  assert.match(md, /A general yes to the plan is not a yes to that/);
+  const { readFile } = await import('node:fs/promises');
+  const agent = await readFile(new URL('../agents/deploy-engineer.md', import.meta.url), 'utf8');
+  assert.match(agent, /\*\*Plan mode\*\* — the first time\. Write nothing, deploy nothing, start nothing/);
+  assert.match(agent, /Production is never implied/);
 });

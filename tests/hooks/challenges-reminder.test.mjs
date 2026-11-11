@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile, utimes } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { withTmpDir } from '../helpers/tmp.mjs';
+import { fileURLToPath } from 'node:url';
 
 const HOOK = fileURLToPath(new URL('../../hooks/challenges-reminder.mjs', import.meta.url));
 const TRANSCRIPT_WITH_FAILURES = fileURLToPath(new URL('../fixtures/challenges-transcript.jsonl', import.meta.url));

@@ -274,6 +274,22 @@ the same visual family rather than looking like a graph library's output.
 | `design_system.tokens` defines both `light` and `dark` | warning |
 | At least one component's `stack_slot` names a slot whose `thesis_support` is `"carries"` | warning — the thesis has a technology behind it but no component realising it |
 
+## Consent flags on `apply`
+
+Three flags record a decision the user made. An apply that needs one and does not have it
+exits with code **3** and writes nothing — distinct from 1 (failure) and 2 (usage), so the
+caller can tell "ask the user" from "something broke".
+
+| Flag | Accepted by | Meaning |
+|---|---|---|
+| `--allow-project-writes` | `architect.mjs`, `requirements.mjs` | Files outside `.koud/` are written where the preview listed them. |
+| `--koud-only` | `architect.mjs`, `requirements.mjs` | The same files are written under `.koud/out/`, mirroring their path. Mutually exclusive with the flag above. |
+| `--replace` | `brief.mjs` | A `brief.json` already on disk, and different from the payload, is replaced. |
+
+`--dry-run` never needs a flag: it lists what lies outside `.koud/` and what would change
+in the brief. A `PreToolUse` hook turns `--allow-project-writes` and `--replace` into a
+permission prompt.
+
 ## `.koud/requirements.json`
 
 Scenarios are structured rather than prose, which is what lets Gherkin render mechanically
@@ -296,6 +312,7 @@ instead of being written twice.
       "requirements": [
         { "id": "FR-1.1",
           "statement": "A member sees only circles they belong to.",
+          "state": "to_build",                    // to_build | delivered — optional, see below
           "invariant_refs": ["tenant-isolation"] }
       ],
       "scenarios": [
@@ -330,7 +347,16 @@ instead of being written twice.
 | `invariant_refs[]` resolve into `architecture.json.invariants` | error when present, warning when absent |
 | Each scenario has non-empty `given`, `when` and `then` arrays | error |
 | At least one feature has `demo_moment: true` | warning |
-| Feature `slug` unique and filesystem-safe | error — it becomes a filename in three places |
+| Feature `slug` unique and filesystem-safe | error — it becomes a filename in two places |
+| `requirements[].state`, when present, is `to_build` or `delivered` | error |
+| Brief on the `existing` track and no requirement carries a `state` | warning — every task would be rendered as new work |
+
+`state` says whether a requirement is work or evidence. `delivered` means the behaviour is
+already in the code: its task in `tasks.md` is rendered as **prove** — write or point to the
+test, expect it to pass at once, and report a failure instead of fixing it quietly.
+`to_build`, or no `state` at all, is rendered as the usual test-first cycle. Mark a
+requirement `delivered` only when the code was read and the behaviour found; when in doubt
+it is `to_build`, because a failing test is cheaper than an unverified claim.
 
 ---
 

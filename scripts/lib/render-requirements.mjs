@@ -66,8 +66,25 @@ export function renderRequirements(requirements, architecture) {
     for (const r of f.requirements ?? []) {
       const inv = (r.invariant_refs ?? []).length > 0
         ? ` *(upholds ${r.invariant_refs.join(', ')})*` : '';
-      out.push(`- **${r.id}** — ${r.statement}${inv}`);
+      const state = r.state === 'delivered' ? ' *(delivered — to prove)*'
+        : r.state === 'to_build' ? ' *(to build)*' : '';
+      out.push(`- **${r.id}** — ${r.statement}${inv}${state}`);
     }
+    out.push('');
+  }
+
+  // Only when the payload says so: a new project has nothing delivered, and a section
+  // listing every requirement as work adds nothing the tables above do not already say.
+  const allReqs = features.flatMap((f) => f.requirements ?? []);
+  if (allReqs.some((r) => r.state === 'delivered')) {
+    const toBuild = allReqs.filter((r) => r.state !== 'delivered');
+    out.push('## Work to do');
+    out.push('');
+    out.push(`${allReqs.length - toBuild.length} requirement(s) describe behaviour the project already has; their`);
+    out.push('scenarios prove it. The new work is:');
+    out.push('');
+    if (toBuild.length === 0) out.push('- none — every requirement is already delivered');
+    for (const r of toBuild) out.push(`- **${r.id}** — ${r.statement}`);
     out.push('');
   }
 

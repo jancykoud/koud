@@ -7,7 +7,7 @@ import { createDefaultState } from '../../scripts/lib/schema.mjs';
 import { readState, writeState } from '../../scripts/lib/state.mjs';
 import { resolveNext } from '../../scripts/lib/resolve-next.mjs';
 import {
-  applyBrief, buildBriefDigest, renderBrief, renderProject, quoteBlock, techLabel,
+  applyBrief, buildBriefDigest, renderBrief, renderProject, quoteBlock, techLabel, diffBrief,
 } from '../../scripts/lib/brief-apply.mjs';
 
 const golden = async () => JSON.parse(
@@ -253,4 +253,45 @@ test('scope is rendered under the track and carried into the digest', async () =
   brief.scope = 'The whole product at its current stage.';
   assert.match(renderBrief(brief), /\*\*Scope:\*\* The whole product at its current stage\./);
   assert.equal(buildBriefDigest(brief).scope, 'The whole product at its current stage.');
+});
+
+// --- diffBrief ---------------------------------------------------------------------------
+
+test('diffBrief is empty for the same brief and names each changed section one level down', async () => {
+  const a = await golden();
+  assert.deepEqual(diffBrief(a, await golden()), []);
+
+  const b = await golden();
+  b.identity.one_liner = 'Something else.';
+  b.criteria.items = b.criteria.items.slice(0, 1);
+  b.extra = { note: 'x' };
+  delete b.audience;
+  const lines = diffBrief(a, b);
+  assert.ok(lines.includes('~ identity.one_liner changed'), lines.join('\n'));
+  assert.ok(lines.some((l) => /^~ criteria\.items changed \(\d+ -> 1 entry\)$/.test(l)), lines.join('\n'));
+  assert.ok(lines.includes('+ extra added'));
+  assert.ok(lines.includes('- audience removed'));
+});
+
+test('diffBrief tolerates a missing or malformed previous brief', async () => {
+  const b = await golden();
+  for (const before of [null, undefined, 'x', []]) {
+    assert.ok(diffBrief(before, b).every((l) => l.startsWith('+ ')));
+  }
+});
+
+test('the first backup adds backups/ to .koud/.gitignore once, keeping what is already there', async () => {
+  await withTmpDir(async (root) => {
+    await init(root);
+    await writeFile(path.join(root, '.koud', '.gitignore'), 'scratch/', 'utf8');
+    await applyBrief(root, await golden());
+    const changed = await golden();
+    changed.identity.one_liner = 'Another line.';
+    await applyBrief(root, changed);
+    await applyBrief(root, await golden());
+    const ignore = await readFile(path.join(root, '.koud', '.gitignore'), 'utf8');
+    assert.equal(ignore, 'scratch/\nbackups/\n');
+    const sets = await readdir(path.join(root, '.koud', 'backups'));
+    assert.ok(sets.length >= 1 && !sets.includes('.gitignore'), 'the backups directory holds backup sets only');
+  });
 });

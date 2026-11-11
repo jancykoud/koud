@@ -270,3 +270,36 @@ test('--dry-run reports the architecture artifacts that already exist, and only 
       'the preview itself must still write nothing');
   });
 });
+
+// --- koud-only ---------------------------------------------------------------------------
+
+test('koud-only writes every project file under .koud/out and leaves the project untouched', async () => {
+  await withTmpDir(async (root) => {
+    await seeded(root);
+    await writeFile(path.join(root, 'AGENTS.md'), '# Mine\n\nHand-written rule.\n', 'utf8');
+    const architecture = await fx('h0-architecture.json');
+    const { artifacts } = await applyArchitecture(root, architecture, { projectWrites: 'koud-only' });
+
+    assert.ok(artifacts.every((a) => a.startsWith('.koud/')), artifacts.join(', '));
+    assert.equal(await readFile(path.join(root, 'AGENTS.md'), 'utf8'), '# Mine\n\nHand-written rule.\n');
+    assert.equal(await exists(path.join(root, 'CLAUDE.md')), false);
+    assert.equal(await exists(path.join(root, 'docs', 'architecture.md')), false);
+
+    const proposed = await readFile(path.join(root, '.koud', 'out', 'AGENTS.md'), 'utf8');
+    assert.match(proposed, /Hand-written rule\./, 'the proposed AGENTS.md starts from the project\'s own');
+    assert.match(proposed, /BEGIN:koud/);
+    assert.ok(await exists(path.join(root, '.koud', 'out', 'docs', 'architecture.md')));
+
+    const state = await readState(root);
+    assert.deepEqual(state.phases.architect.artifacts, artifacts, 'the phase declares what it really wrote');
+  });
+});
+
+test('an unknown write mode is refused before anything is written', async () => {
+  await withTmpDir(async (root) => {
+    await seeded(root);
+    await assert.rejects(
+      () => applyArchitecture(root, {}, { projectWrites: 'ask' }), /projectWrites must be one of allow, koud-only/,
+    );
+  });
+});

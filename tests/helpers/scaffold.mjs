@@ -10,7 +10,6 @@ import { applyShip } from '../../scripts/lib/ship-apply.mjs';
 import { applyReview } from '../../scripts/lib/review-apply.mjs';
 
 const fx = async (n) => JSON.parse(await readFile(new URL(`../fixtures/${n}`, import.meta.url), 'utf8'));
-const okExec = async () => ({ code: 0, stdout: '', stderr: '' });
 
 async function approve(root, phase) {
   const s = await readState(root);
@@ -23,7 +22,7 @@ async function approve(root, phase) {
  * approved) from the h0- fixtures, so the integration tests share one setup. Returns the
  * requirements.json object used, so callers don't need a second fixture read.
  */
-export async function scaffoldStage2Project(root, { exec = okExec } = {}) {
+export async function scaffoldStage2Project(root) {
   const s = createDefaultState({ pluginVersion: '0.1.0' });
   await writeState(root, s);
   await applyBrief(root, await fx('h0-brief.json'));
@@ -39,7 +38,7 @@ export async function scaffoldStage2Project(root, { exec = okExec } = {}) {
   await approve(root, 'architect');
   await applyRequirements(root, requirements, { brief, architecture });
   await approve(root, 'requirements');
-  await applySpec(root, { requirements, architecture, exec });
+  await applySpec(root, { requirements, architecture });
   await approve(root, 'spec');
   return requirements;
 }
@@ -48,8 +47,8 @@ export async function scaffoldStage2Project(root, { exec = okExec } = {}) {
  * Extends scaffoldStage2Project through an approved :ship, from the h0-deploy.json
  * fixture. Shared by the :review integration test.
  */
-export async function scaffoldStage4Project(root, { exec = okExec } = {}) {
-  const requirements = await scaffoldStage2Project(root, { exec });
+export async function scaffoldStage4Project(root) {
+  const requirements = await scaffoldStage2Project(root);
   const deploy = await fx('h0-deploy.json');
   await applyShip(root, deploy, {});
   await approve(root, 'ship');

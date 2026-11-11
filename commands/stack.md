@@ -55,13 +55,18 @@ a third is a loop, not a fix, so stop and show the user the errors.
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/stack.mjs apply . --dry-run`
 
-If it reports it would overwrite an existing `.koud/stack.json` or `stack.md`, tell
-the user which files **before** applying. Then:
+Everything this phase writes is under `.koud/`. If the preview lists an existing
+`.koud/stack.md` under `Would overwrite:`, **stop** and tell the user a stack they already
+approved is about to be replaced, and what differs. Apply only after they say yes. On a
+first run there is nothing to overwrite: go on.
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/stack.mjs apply .`
 
 ## Step 6 — Stop at the gate
 
-Show the user the slot table and the rejected alternatives. Ask whether to proceed.
+Show the user the slot table and the rejected alternatives. Say separately what is your
+proposal rather than a fact from the brief or the code, and what you did not verify — a
+version you read in a manifest is a fact; "this version is still supported" is a claim you
+checked today or did not. Ask whether to proceed.
 **Do not continue to `:architect` without an explicit yes.** The phase is
 `awaiting_approval` and `:next` will not advance past it.

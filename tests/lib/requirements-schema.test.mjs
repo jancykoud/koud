@@ -339,3 +339,33 @@ test('a non_functional entry missing id, statement or verify is an error', async
     assert.ok(errors.some((e) => e.includes(`non_functional[0].${field}`)), errors.join('; '));
   }
 });
+
+// --- requirement state -------------------------------------------------------------------
+
+test('a requirement state is optional, and must be to_build or delivered when present', async () => {
+  const doc = await golden();
+  doc.features[0].requirements[0].state = 'delivered';
+  assert.equal(validateRequirements(doc, await upstream()).valid, true);
+  doc.features[0].requirements[0].state = 'done';
+  const { valid, errors } = validateRequirements(doc, await upstream());
+  assert.equal(valid, false);
+  assert.ok(errors.some((e) => /state "done" is not one of to_build, delivered/.test(e)), errors.join('\n'));
+});
+
+test('an existing-track brief with no state on any requirement is warned about, once states exist it is not', async () => {
+  const doc = await golden();
+  const up = await upstream();
+  up.brief.track = 'existing';
+  const bare = validateRequirements(doc, up);
+  assert.equal(bare.valid, true, 'a warning, never an error');
+  assert.ok(bare.warnings.some((w) => /existing track but no requirement carries a state/.test(w)));
+
+  doc.features[0].requirements[0].state = 'to_build';
+  const marked = validateRequirements(doc, up);
+  assert.ok(!marked.warnings.some((w) => /carries a state/.test(w)));
+
+  const fresh = await upstream();
+  fresh.brief.track = 'new';
+  assert.ok(!validateRequirements(await golden(), fresh).warnings.some((w) => /carries a state/.test(w)),
+    'a new project has nothing delivered, so there is nothing to warn about');
+});

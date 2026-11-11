@@ -1,4 +1,4 @@
-import { copyFile, mkdir, access } from 'node:fs/promises';
+import { copyFile, mkdir, access, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { KOUD_DIR, backupDir } from './paths.mjs';
 
@@ -21,6 +21,27 @@ export async function backupFile(root, relPath, stamp) {
 }
 
 /**
+ * Keeps backups out of version control. A backup is a verbatim copy of whatever was about
+ * to be replaced — including uncommitted edits to CLAUDE.md or AGENTS.md the user never
+ * meant to publish — so committing `.koud/` must not carry them along. The rule goes in
+ * `.koud/.gitignore`: the project's own .gitignore is not touched, and the backups
+ * directory keeps holding nothing but backup sets. A rule already present is not repeated;
+ * anything else the user put in that file is kept.
+ */
+const BACKUPS_IGNORE_RULE = 'backups/';
+
+async function ignoreBackups(root) {
+  const file = path.join(root, KOUD_DIR, '.gitignore');
+  const current = await readFile(file, 'utf8').catch((err) => {
+    if (err.code === 'ENOENT') return '';
+    throw err;
+  });
+  if (current.split(/\r?\n/).some((line) => line.trim() === BACKUPS_IGNORE_RULE)) return;
+  const sep = current === '' || current.endsWith('\n') ? '' : '\n';
+  await writeFile(file, `${current}${sep}${BACKUPS_IGNORE_RULE}\n`, 'utf8');
+}
+
+/**
  * Claims a backup directory nobody else is using, by creating it. `timestamp()` has
  * one-second resolution, so two applies of the same command inside one wall-clock second
  * would otherwise share a directory and the second run's copyFile() would silently overwrite
@@ -30,7 +51,9 @@ export async function backupFile(root, relPath, stamp) {
  * gets a numeric suffix: `<stamp>`, then `<stamp>-2`, `<stamp>-3`, ...
  */
 async function claimBackupDir(root, stamp) {
-  await mkdir(path.join(root, KOUD_DIR, 'backups'), { recursive: true });
+  const backups = path.join(root, KOUD_DIR, 'backups');
+  await mkdir(backups, { recursive: true });
+  await ignoreBackups(root);
   for (let n = 1; ; n += 1) {
     const candidate = n === 1 ? stamp : `${stamp}-${n}`;
     try {

@@ -9,8 +9,10 @@ async function exists(p) {
 }
 
 /**
- * Decide how to touch a markdown file we may not own.
- * A file we wrote entirely may be rewritten freely; anything else needs a yes.
+ * Decide how to touch a markdown file at the project root.
+ * A file we wrote entirely may be rewritten freely; anything else needs a yes — and that
+ * includes creating one that does not exist yet. The root of a project is not ours: a file
+ * appearing there unasked is the same surprise whether or not something was overwritten.
  */
 async function planMarkdownBlock(root, rel, body, reason) {
   const abs = path.join(root, rel);
@@ -18,7 +20,7 @@ async function planMarkdownBlock(root, rel, body, reason) {
     // Wrap in markers on creation too: an unwrapped create would leave the
     // file un-"fully managed" from birth, so a second :init would forever
     // (spuriously) ask for consent to touch a file we wrote entirely.
-    return { kind: 'create', path: rel, reason, needsConsent: false, body: upsertBlock('', body) };
+    return { kind: 'create', path: rel, reason, needsConsent: true, body: upsertBlock('', body) };
   }
   const content = await readFile(abs, 'utf8');
   return {

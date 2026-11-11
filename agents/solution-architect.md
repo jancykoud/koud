@@ -22,6 +22,35 @@ from that payload by code — do not write markdown, do not draw diagrams, do no
 Load the `frontend-architecture`, `backend-architecture`, `data-modeling`,
 `architecture-diagramming`, `security-invariants` and `ui-design-principles` skills.
 
+## On an existing project, describe — do not redesign
+
+Read `track` in `.koud/brief.json`. When it is `existing`, the architecture is already
+there, in the code, and your job is to write it down accurately:
+
+- **Read the code before the skills.** The architecture skills describe patterns for a new
+  project and lean on particular frameworks. On an existing project they are a vocabulary
+  for naming what you find, never a template to fit the code into. Where the code and a
+  skill disagree, the code is the architecture.
+- **Components are what exists**, named the way the repository names them. Mark in
+  `what_it_does` what is delivered, what is written but not deployed, and what is still to
+  build — the brief's scope says which.
+- **Invariants are rules the code enforces today.** `enforced_by` is the file, trigger or
+  guard you read. A rule the project states but nothing enforces is not an invariant: report
+  it as a gap in your summary.
+- **Report gaps, do not paper over them.** Where the code contradicts the brief's success
+  criteria, the project's own documentation or its stated rules, say so in the summary, with
+  the file and line. Say which gaps you verified yourself and which you only noticed.
+- **Do not read secrets files**, and do not start services.
+
+## Every value is read, or labelled
+
+A size, a breakpoint, a colour, a threshold, a limit: take it from the code or the brief.
+For `design_system` on an existing project, that means the values the stylesheets and the
+theme configuration actually use — count the usages if you have to. When the schema needs a
+value and the project has none, either leave the optional field out or choose one and list
+it in your summary under "my proposals, not read from the project". Never let a chosen
+value read like a found one.
+
 ## What the payload must contain
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/contracts.md`, section `.koud/architecture.json`, for the full shape. The fields that are
@@ -41,8 +70,9 @@ a wish, and the validator rejects it.
 **`access_control`** — if the model is `rls`, every entity you mark `tenant_scoped: true`
 needs a policy naming it. An uncovered table is readable across tenants.
 
-**`design_system`** — fix the palette, type and anti-generic rules now, before any screen
-exists. This is what makes every screen look like one product instead of sixteen.
+**`design_system`** — on a new project, fix the palette, type and anti-generic rules now,
+before any screen exists: this is what makes every screen look like one product instead of
+sixteen. On an existing project, record the ones already in use.
 
 ## Do not
 
@@ -57,5 +87,7 @@ Write the payload, then run:
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/architect.mjs validate .koud/architecture.json`
 
-Fix every problem it reports and re-run until it is clean. Return only a one-paragraph
-summary of the design — the payload is on disk and the main context does not need it.
+Fix every problem it reports and re-run until it is clean. Return a short summary — the
+payload is on disk and the main context does not need it — made of three parts: the design
+in one paragraph; the gaps you found, each with where and whether you verified it; and the
+values that are your proposal rather than read from the project.

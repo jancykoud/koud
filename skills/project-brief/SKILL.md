@@ -114,6 +114,17 @@ README. State only what you found, and where. Two traps:
 - **The README describes an intention.** When it disagrees with the code, the code is the
   fact and the disagreement goes into `unresolved`.
 
+- **A value is read or it is absent.** An amount, a threshold, a count: if it is in the
+  code, a seed file or a test fixture, say which — a test value is not a product fact. If
+  it is nowhere, do not supply one.
+
+## A re-run replaces something the user approved
+
+When `.koud/brief.json` already exists, the new brief is a change to an agreed document.
+Ask what the new fields need instead of filling them in, show only what differs, and wait
+for a yes before replacing it. The previous brief is backed up, but a backup is for
+recovery, not a licence to overwrite.
+
 ## Before you present it
 
 Read the one-liner and the top-ranked criterion aloud, one after the other. If the

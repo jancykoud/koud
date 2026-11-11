@@ -24,10 +24,16 @@ import { openBackupSet, existingPaths } from './backup.mjs';
 import { validateRequirements } from './requirements-schema.mjs';
 import { renderRequirements } from './render-requirements.mjs';
 import { emitAllGherkin } from './emit-gherkin.mjs';
+import { redirect, WRITE_MODES } from './project-writes.mjs';
 
 export async function applyRequirements(
-  root, requirements, { brief, architecture, dryRun = false, stamp: stampOverride } = {},
+  root, requirements, { brief, architecture, dryRun = false, stamp: stampOverride, projectWrites = 'allow' } = {},
 ) {
+  if (!WRITE_MODES.includes(projectWrites)) {
+    throw new Error(`projectWrites must be one of ${WRITE_MODES.join(', ')}`);
+  }
+  // Under 'koud-only' the Gherkin files land under .koud/out/features/ instead of features/.
+  const featuresDir = redirect(FEATURES_DIR, projectWrites);
   const { valid, errors } = validateRequirements(requirements, { brief, architecture });
   if (!valid) {
     throw new Error(`refusing to apply an invalid requirements payload:\n  ${errors.join('\n  ')}`);
@@ -59,21 +65,21 @@ export async function applyRequirements(
   // are never backed up (see file header) even though both sets are written the same way.
   const gherkin = emitAllGherkin(requirements);
   const featureFiles = new Map();
-  for (const [slug, body] of gherkin) featureFiles.set(`${FEATURES_DIR}/${slug}.feature`, body);
+  for (const [slug, body] of gherkin) featureFiles.set(`${featuresDir}/${slug}.feature`, body);
 
   const files = new Map([...backedUpFiles, ...featureFiles]);
 
   // A .feature file from a previous run whose feature has since been dropped. Report it;
   // deleting a file the user may have edited is worse than leaving it.
   const skipped = [];
-  const existing = await readdir(path.join(root, FEATURES_DIR)).catch((err) => {
+  const existing = await readdir(path.join(root, featuresDir)).catch((err) => {
     if (err.code === 'ENOENT') return [];
     throw err;
   });
   const current = new Set([...gherkin.keys()].map((s) => `${s}.feature`));
   for (const name of existing) {
     if (name.endsWith('.feature') && !current.has(name)) {
-      skipped.push(`${FEATURES_DIR}/${name} — no longer in requirements.json; left in place`);
+      skipped.push(`${featuresDir}/${name} — no longer in requirements.json; left in place`);
     }
   }
 

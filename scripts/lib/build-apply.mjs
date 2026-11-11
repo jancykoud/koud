@@ -5,7 +5,8 @@
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { specsDir, featurePath } from './paths.mjs';
+import { specsDir, featurePath, FEATURES_DIR } from './paths.mjs';
+import { OUT_DIR } from './project-writes.mjs';
 
 const pad = (n) => String(n).padStart(4, '0');
 
@@ -60,13 +61,24 @@ export async function nextFeature(root, requirements, cutFeatures = [], { featur
   return null;
 }
 
+/** The first of `paths` that can be read, or null when none can. */
+async function readFirst(...paths) {
+  for (const p of paths) {
+    const body = await readOrNull(p);
+    if (body !== null) return body;
+  }
+  return null;
+}
+
 export async function buildContextBundle(root, feature) {
   const dir = path.join(specsDir(root), feature.dir);
   const [designMd, requirementsMd, gherkin, agentsMd, stackMd] = await Promise.all([
     readOrNull(path.join(dir, 'design.md')),
     readOrNull(path.join(dir, 'requirements.md')),
-    readOrNull(featurePath(root, feature.slug)),
-    readOrNull(path.join(root, 'AGENTS.md')),
+    // A project that kept koud's files inside .koud/ (`--koud-only`) has these under
+    // .koud/out/ instead; the project's own copy wins when both exist.
+    readFirst(featurePath(root, feature.slug), path.join(root, OUT_DIR, FEATURES_DIR, `${feature.slug}.feature`)),
+    readFirst(path.join(root, 'AGENTS.md'), path.join(root, OUT_DIR, 'AGENTS.md')),
     readOrNull(path.join(root, '.koud', 'stack.md')),
   ]);
   return { designMd, requirementsMd, gherkin, agentsMd, stackMd };

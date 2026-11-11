@@ -32,61 +32,19 @@ test('with all four phases approved, :next resolves cleanly to :build with no dr
   });
 });
 
-test('one FR id travels intact into all four spec surfaces', async () => {
+test('one FR id travels intact into all three spec surfaces', async () => {
   await withTmpDir(async (root) => {
     await scaffoldStage2Project(root);
     const target = 'FR-1.1';
-    const [frTable, gherkin, kiro, proposal] = await Promise.all([
+    const [frTable, gherkin, kiro] = await Promise.all([
       readFile(path.join(root, '.koud/requirements.md'), 'utf8'),
       readFile(path.join(root, 'features/shared-care-record.feature'), 'utf8'),
       readFile(path.join(root, '.koud/specs/0001-shared-care-record/requirements.md'), 'utf8'),
-      readFile(path.join(root, 'openspec/changes/shared-care-record/proposal.md'), 'utf8'),
     ]);
     for (const [name, body] of [['FR table', frTable], ['gherkin', gherkin],
-      ['kiro', kiro], ['proposal', proposal]]) {
+      ['kiro', kiro]]) {
       assert.ok(carriesFrId(body, target), `${target} did not reach the ${name} surface`);
     }
-  });
-});
-
-test('an unreachable OpenSpec leaves the other three surfaces complete', async () => {
-  await withTmpDir(async (root) => {
-    const architecture = await fx('h0-architecture.json');
-    await scaffoldStage2Project(root, { exec: async () => ({ code: 127, stdout: '', stderr: 'not found' }) });
-    // scaffoldStage2Project returns requirements.json (shared with the Stage 3 tests), not
-    // applySpec's own return value, so "deferred" — already unit-tested directly against
-    // applySpec's return value in spec-apply.test.mjs — is checked here via its observable
-    // effect instead: an unreachable OpenSpec CLI never gets past `init`, so no proposal is
-    // ever written to disk.
-    const proposalWritten = await readFile(
-      path.join(root, 'openspec/changes/shared-care-record/proposal.md'), 'utf8',
-    ).then(() => true, () => false);
-    assert.equal(proposalWritten, false, 'a deferred OpenSpec must not have written a proposal');
-
-    const target = 'FR-1.1';
-    const [frTable, gherkin, design] = await Promise.all([
-      readFile(path.join(root, '.koud/requirements.md'), 'utf8'),
-      readFile(path.join(root, 'features/shared-care-record.feature'), 'utf8'),
-      readFile(path.join(root, '.koud/specs/0001-shared-care-record/design.md'), 'utf8'),
-    ]);
-    // A bare `assert.ok(await readFile(...))` only proves the file is non-empty — a
-    // placeholder string would satisfy it just as well as the real render. Check for the
-    // actual content each surface is supposed to carry instead.
-    assert.ok(carriesFrId(frTable, target), 'FR table did not survive a deferred OpenSpec');
-    assert.ok(carriesFrId(gherkin, target), 'gherkin did not survive a deferred OpenSpec');
-    // design.md carries no FR ids by construction (emit-kiro.mjs's kiroDesign works from
-    // components and invariants, not requirement ids) — its substance is the component
-    // slice and the invariants a build agent must uphold, so check those instead.
-    for (const c of architecture.components) {
-      assert.ok(design.includes(c.label), `design.md is missing component "${c.label}"`);
-    }
-    assert.ok(
-      design.includes('dal-only-tenant-access'),
-      'design.md is missing the invariant FR-1.1 upholds',
-    );
-
-    const next = await resolveNext(root);
-    assert.equal(next.outcome, 'start', 'a deferred optional tool must not leave the pipeline stuck');
   });
 });
 

@@ -26,13 +26,34 @@ Every `must` priority feature needs at least one scenario with concrete Given/Wh
 steps — written so it could be executed against the running product, not merely read as a
 description of intent.
 
-## Step 4 — Flag the demo moment
+## Step 4 — Say what is already there
+
+On the `existing` track, give every requirement a `state`:
+
+- `"delivered"` — the behaviour is already in the code. You read the code and found it;
+  say where. Its task will be a **prove** task: the test is expected to pass at once.
+- `"to_build"` — it is not there yet, or you could not confirm that it is.
+
+When in doubt it is `to_build`. A failing test costs a few minutes; a requirement wrongly
+marked delivered is a claim nobody checks again. On the `new` track, leave `state` out.
+
+A requirement with no scenario cannot be demonstrated. If neither the brief nor the code
+says what it should do, do not write one from imagination: ask the user, or propose
+dropping it from this phase.
+
+**Every concrete value in a scenario — an amount, a duration, a count, a name — is read
+from the brief, the code or the user's own words.** If you need one that none of them
+gives, write the scenario without the number ("the practitioner's fee", not "15 000 XAF")
+or ask. A value taken from a seed file or a test fixture is a test value: say so, do not
+present it as a fact about the product.
+
+## Step 5 — Flag the demo moment
 
 Exactly one feature is the demo moment: the one scenario that, shown in thirty seconds,
 makes the brief's one-liner obviously true. Set `demo_moment: true` on it, and nowhere
 else.
 
-## Step 5 — Write and validate
+## Step 6 — Write and validate
 
 Write `.koud/requirements.json` — its shape and rules are in
 `${CLAUDE_PLUGIN_ROOT}/docs/contracts.md` — then run:
@@ -42,26 +63,45 @@ Write `.koud/requirements.json` — its shape and rules are in
 The script prints every problem at once. Fix them all, then re-run. **At most two retries** —
 a third is a loop, not a fix, so stop and show the user the errors.
 
-## Step 6 — Preview, then apply
+## Step 7 — Preview, then stop
 
 `node ${CLAUDE_PLUGIN_ROOT}/scripts/requirements.mjs apply . --dry-run`
 
-If it reports it would overwrite an existing `.koud/requirements.md` or
-`.koud/requirements.json`, tell the user **before** applying. Then:
-
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/requirements.mjs apply .`
-
 This writes `.koud/requirements.json`, `.koud/requirements.md`, and one
-`features/<slug>.feature` per feature. The first two are backed up under
-`.koud/backups/<timestamp>/` before being overwritten; the `.feature` files are not —
-regenerating them on every run is the intended contract, so never hand-edit one. If a
-`.feature` file from a previous run is no longer in the requirements, the script reports it
-under `Left in place:` rather than deleting it — never hand-editing one is the rule, but the
-script will not destroy evidence that someone broke it, so a file it no longer regenerates is
-kept in case the user had edited it before it was dropped.
+`features/<slug>.feature` per feature. The Gherkin files are outside `.koud/`: the preview
+lists them under `Outside .koud/`, and whether a `features/` folder appears in the project
+is the user's decision.
 
-## Step 7 — Stop at the gate
+**Stop here.** Show the user that list and ask one question with two answers:
+
+- **Yes, write `features/` in the project** — where a test runner would look for them.
+- **No, keep them inside `.koud/`** — they are written under `.koud/out/features/`.
+
+If the preview also reports it would overwrite `.koud/requirements.md` or
+`.koud/requirements.json`, say so in the same message. Do not apply before the answer;
+an apply without a flag is refused by the script (exit code 3, nothing written).
+
+## Step 8 — Apply the way the user chose
+
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/requirements.mjs apply . --allow-project-writes`
+
+or
+
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/requirements.mjs apply . --koud-only`
+
+The first prompts the user to confirm; that is deliberate. Never pass
+`--allow-project-writes` on your own judgement.
+
+`requirements.json` and `requirements.md` are backed up under `.koud/backups/<timestamp>/`
+before being overwritten; the `.feature` files are not — regenerating them on every run is
+the intended contract, so never hand-edit one. If a `.feature` file from a previous run is
+no longer in the requirements, the script reports it under `Left in place:` rather than
+deleting it.
+
+## Step 9 — Stop at the gate
 
 Show the user the criteria-coverage table and the Definition of Done from
-`requirements.md`. Ask whether to proceed. **Do not continue to `:spec` without an
+`requirements.md`. On the `existing` track, show the new work on its own — the
+requirements that are `to_build` — because that list, not the full one, is the size of the
+job. Say which rankings and which demo moment are your proposal. Ask whether to proceed. **Do not continue to `:spec` without an
 explicit yes.** The phase is `awaiting_approval` and `:next` will not advance past it.

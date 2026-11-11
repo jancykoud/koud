@@ -12,9 +12,6 @@ import { withTmpDir } from '../helpers/tmp.mjs';
 const fx = async (n) =>
   JSON.parse(await readFile(new URL(`../fixtures/${n}`, import.meta.url), 'utf8'));
 
-const okExec = async () => ({ code: 0, stdout: '', stderr: '' });
-const deadExec = async () => ({ code: 127, stdout: '', stderr: 'command not found' });
-
 async function seeded(root) {
   const s = createDefaultState({ pluginVersion: '0.1.0' });
   s.project = { name: 'Kintwadi' };
@@ -25,41 +22,23 @@ async function payloads() {
   return { requirements: await fx('h0-requirements.json'), architecture: await fx('h0-architecture.json') };
 }
 
-test('it writes the triad for every must-have and the proposals', async () => {
+test('it writes the triad for every must-have and nothing outside .koud', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
-    const { artifacts, openspec } = await applySpec(root, { ...(await payloads()), exec: okExec });
+    const { artifacts } = await applySpec(root, { ...(await payloads()) });
 
-    assert.equal(openspec.status, 'written');
     for (const dir of ['0001-shared-care-record', '0002-medication-safety']) {
       for (const f of ['requirements.md', 'design.md', 'tasks.md']) {
         const p = path.join(root, '.koud/specs', dir, f);
         assert.ok(await readFile(p, 'utf8'), `${dir}/${f} was not written`);
       }
     }
-    assert.ok(artifacts.some((a) => a.includes('openspec/changes')));
+    assert.ok(artifacts.every((a) => a.startsWith('.koud/specs/')), 'spec writes only under .koud/specs');
+    await assert.rejects(() => readdir(path.join(root, 'openspec')), /ENOENT/);
 
     const after = await readState(root);
     assert.equal(after.phases.spec.status, 'awaiting_approval');
-    assert.deepEqual(after.phases.spec.artifacts, ['.koud/specs'],
-      'only the specs directory is declared — openspec/ may legitimately be absent');
-  });
-});
-
-test('an unreachable OpenSpec still writes the triad and reports deferred', async () => {
-  await withTmpDir(async (root) => {
-    await seeded(root);
-    const { openspec } = await applySpec(root, { ...(await payloads()), exec: deadExec });
-
-    assert.equal(openspec.status, 'deferred');
-    assert.ok(openspec.command.includes('@fission-ai/openspec'));
-
-    const dirs = await readdir(path.join(root, '.koud/specs'));
-    assert.equal(dirs.length, 2, 'the Kiro triad does not depend on the CLI');
-
-    const after = await readState(root);
-    assert.equal(after.phases.spec.status, 'awaiting_approval',
-      'a deferred optional tool must not block a phase whose own outputs are complete');
+    assert.deepEqual(after.phases.spec.artifacts, ['.koud/specs']);
   });
 });
 
@@ -68,7 +47,7 @@ test('it refuses to run when requirements are invalid', async () => {
     await seeded(root);
     const p = await payloads();
     p.requirements.features[0].scenarios = [];
-    await assert.rejects(() => applySpec(root, { ...p, exec: okExec }), /refusing to apply/);
+    await assert.rejects(() => applySpec(root, { ...p }), /refusing to apply/);
   });
 });
 
@@ -80,7 +59,7 @@ test('a spec folder from a dropped feature is reported, not deleted', async () =
     await mkdir(stale, { recursive: true });
     await writeFile(path.join(stale, 'tasks.md'), '# old\n', 'utf8');
 
-    const { skipped } = await applySpec(root, { ...(await payloads()), exec: okExec });
+    const { skipped } = await applySpec(root, { ...(await payloads()) });
     assert.ok(skipped.some((s) => s.includes('0009-dropped-feature')));
     assert.ok(await readFile(path.join(stale, 'tasks.md'), 'utf8'),
       'a folder the user may have edited is left in place');
@@ -90,10 +69,7 @@ test('a spec folder from a dropped feature is reported, not deleted', async () =
 test('--dry-run writes nothing and runs no command', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
-    let called = false;
-    const spyExec = async () => { called = true; return { code: 0, stdout: '', stderr: '' }; };
-    const { artifacts } = await applySpec(root, { ...(await payloads()), exec: spyExec, dryRun: true });
-    assert.equal(called, false);
+    const { artifacts } = await applySpec(root, { ...(await payloads()), dryRun: true });
     assert.ok(artifacts.length > 0);
     const missing = await readdir(path.join(root, '.koud/specs')).then(() => false).catch(() => true);
     assert.equal(missing, true);
@@ -104,9 +80,9 @@ test('a rerun is idempotent', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
     const p = await payloads();
-    await applySpec(root, { ...p, exec: okExec });
+    await applySpec(root, { ...p });
     const before = await readFile(path.join(root, '.koud/specs/0001-shared-care-record/tasks.md'), 'utf8');
-    await applySpec(root, { ...p, exec: okExec });
+    await applySpec(root, { ...p });
     const after = await readFile(path.join(root, '.koud/specs/0001-shared-care-record/tasks.md'), 'utf8');
     assert.equal(after, before);
   });
@@ -119,7 +95,7 @@ test('a rerun is idempotent', async () => {
 // emitKiro() returns an empty Map, so the write loop below never runs — but applySpec()
 // unconditionally declares `artifacts: [SPECS_REL]` on the phase regardless. If SPECS_REL is
 // never created on disk, an approved phase drifts forever: this is exactly the failure mode
-// this file's own header comment describes designing around for openspec/, reintroduced here
+// an undeclared-but-required directory produces, reintroduced here
 // for the triad.
 
 async function zeroMustPayloads() {
@@ -131,7 +107,7 @@ async function zeroMustPayloads() {
 test('a payload with zero must-have features still creates .koud/specs', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
-    const { artifacts } = await applySpec(root, { ...(await zeroMustPayloads()), exec: okExec });
+    const { artifacts } = await applySpec(root, { ...(await zeroMustPayloads()) });
 
     assert.deepEqual(artifacts.filter((a) => a.startsWith('.koud/specs')), [],
       'no triad files were written — there are no must-have features to write them for');
@@ -148,7 +124,7 @@ test('a payload with zero must-have features still creates .koud/specs', async (
 test('full chain: a zero-must apply, once approved, does not report drift on :next', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
-    await applySpec(root, { ...(await zeroMustPayloads()), exec: okExec });
+    await applySpec(root, { ...(await zeroMustPayloads()) });
 
     const state = await readState(root);
     state.phases.spec.status = 'approved';
@@ -171,7 +147,7 @@ test('a rerun backs up an edited tasks.md before overwriting it', async () => {
   await withTmpDir(async (root) => {
     await seeded(root);
     const p = await payloads();
-    await applySpec(root, { ...p, exec: okExec });
+    await applySpec(root, { ...p });
 
     const tasksPath = path.join(root, '.koud/specs/0001-shared-care-record/tasks.md');
     const original = await readFile(tasksPath, 'utf8');
@@ -179,7 +155,7 @@ test('a rerun backs up an edited tasks.md before overwriting it', async () => {
     assert.notEqual(checked, original, 'the fixture must actually contain checkboxes to flip');
     await writeFile(tasksPath, checked, 'utf8');
 
-    const { backedUp } = await applySpec(root, { ...p, exec: okExec });
+    const { backedUp } = await applySpec(root, { ...p });
     assert.ok(backedUp.some((b) => b.endsWith('0001-shared-care-record/tasks.md')),
       'the edited tasks.md must be reported as backed up');
 
@@ -205,7 +181,7 @@ test('applySpec surfaces validateRequirements warnings for the CLI to print', as
     // applySpec() never passes `brief` to validateRequirements() (it isn't part of its own
     // interface), so every call reliably carries this warning — the fact worth proving here
     // is that applySpec() forwards `warnings` at all, not any specific warning's content.
-    const { warnings } = await applySpec(root, { ...(await payloads()), exec: okExec });
+    const { warnings } = await applySpec(root, { ...(await payloads()) });
     assert.ok(Array.isArray(warnings));
     assert.ok(warnings.some((w) => /brief/i.test(w)),
       'validateRequirements warns when no brief was supplied — applySpec must forward it, not swallow it');
@@ -223,10 +199,10 @@ test('applySpec backs every triad file up under the one injected stamp', async (
   await withTmpDir(async (root) => {
     await seeded(root);
     const p = await payloads();
-    await applySpec(root, { ...p, exec: okExec });
+    await applySpec(root, { ...p });
 
     const fixedStamp = 'spec-shared-stamp-check';
-    const { backedUp, backupStamp } = await applySpec(root, { ...p, exec: okExec, stamp: fixedStamp });
+    const { backedUp, backupStamp } = await applySpec(root, { ...p, stamp: fixedStamp });
 
     assert.equal(backupStamp, fixedStamp, 'the stamp actually used must be the one passed in');
     assert.equal(backedUp.length, 6, 'both features\' three triad files were already on disk');
@@ -252,7 +228,7 @@ test('demoting a must-have reuses the later features\' folders instead of renumb
   await withTmpDir(async (root) => {
     await seeded(root);
     const { requirements, architecture } = await payloads();
-    await applySpec(root, { requirements, architecture, exec: okExec });
+    await applySpec(root, { requirements, architecture });
 
     const kept = path.join(root, '.koud/specs/0002-medication-safety');
     const tasksPath = path.join(kept, 'tasks.md');
@@ -269,7 +245,7 @@ test('demoting a must-have reuses the later features\' folders instead of renumb
     demoted.features[0].priority = 'should';
 
     const { skipped, backedUp, artifacts } =
-      await applySpec(root, { requirements: demoted, architecture, exec: okExec });
+      await applySpec(root, { requirements: demoted, architecture });
 
     const dirs = (await readdir(path.join(root, '.koud/specs'))).sort();
     assert.deepEqual(dirs, ['0001-shared-care-record', '0002-medication-safety'],
@@ -302,12 +278,12 @@ test('--dry-run reports the triad files that already exist, and only those', asy
     await seeded(root);
     const p = await payloads();
 
-    const fresh = await applySpec(root, { ...p, exec: okExec, dryRun: true });
+    const fresh = await applySpec(root, { ...p, dryRun: true });
     assert.deepEqual(fresh.wouldOverwrite, [],
       'nothing is on disk yet, so a preview must not claim it would overwrite anything');
 
-    await applySpec(root, { ...p, exec: okExec });
-    const { wouldOverwrite } = await applySpec(root, { ...p, exec: okExec, dryRun: true });
+    await applySpec(root, { ...p });
+    const { wouldOverwrite } = await applySpec(root, { ...p, dryRun: true });
     assert.ok(wouldOverwrite.includes('.koud/specs/0001-shared-care-record/tasks.md'),
       'a tasks.md a build agent may have ticked off must be named before it is regenerated');
     assert.ok(wouldOverwrite.includes('.koud/specs/0002-medication-safety/design.md'));
@@ -322,15 +298,12 @@ test('a specs path that is not a directory surfaces its error rather than being 
     await mkdir(path.join(root, '.koud'), { recursive: true });
     await writeFile(path.join(root, '.koud/specs'), 'not a directory\n', 'utf8');
     const p = await payloads();
-    let called = false;
-    const spyExec = async () => { called = true; return { code: 0, stdout: '', stderr: '' }; };
     await assert.rejects(
-      () => applySpec(root, { ...p, exec: spyExec }),
+      () => applySpec(root, { ...p }),
       // ENOTDIR from the scandir itself, not EEXIST from a later mkdir: the readdir used to
       // catch(() => []) and swallow every error, so the run carried on past a specs path it
       // could not actually read and only tripped further downstream.
       (err) => err.code === 'ENOTDIR',
     );
-    assert.equal(called, false, 'it must fail before driving OpenSpec, not after');
   });
 });

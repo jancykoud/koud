@@ -47,6 +47,13 @@ test('the secrets guard runs before the file tools and Bash', async () => {
   assert.match(group.hooks[0].command, /guard-secrets$/);
 });
 
+test('the consent guard runs before Bash', async () => {
+  const cfg = await config();
+  const group = cfg.hooks.PreToolUse.find((g) => /guard-consent$/.test(g.hooks[0].command));
+  assert.ok(group, 'guard-consent must be registered under PreToolUse');
+  assert.ok(group.matcher.split('|').includes('Bash'));
+});
+
 test('every hook command is resolved from the plugin root, never from the project', async () => {
   for (const { command } of commands(await config())) {
     assert.match(command, /\$\{CLAUDE_PLUGIN_ROOT\}/);

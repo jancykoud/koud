@@ -34,34 +34,17 @@ if (subcommand === 'apply') {
 
   try {
     const {
-      artifacts, openspec, skipped, backedUp, warnings, wouldOverwrite,
+      artifacts, skipped, backedUp, warnings, wouldOverwrite,
     } = await applySpec(root, { requirements, architecture, dryRun });
 
     // :spec has no `validate` subcommand of its own (it validates the requirements payload
-    // :requirements already produced), so `apply` is the only place these warnings can ever
-    // surface — unlike stack/architect/requirements, where a separate `validate` subcommand
-    // prints them. Without this, an absent architecture.json degrades every design.md to a
-    // stub with no signal to the user, even though Step 3 of the command promises design.md
-    // IS the architecture slice.
+    // :requirements already produced), so `apply` is the only place these warnings can
+    // surface. Without this, an absent architecture.json degrades every design.md to a stub
+    // with no signal to the user.
     for (const w of warnings ?? []) console.log(`warning: ${w}`);
 
-    // The certain/contingent split uses openspec.artifacts directly — it is already the
-    // exact structural list runOpenspec() returns — rather than re-deriving it by filtering
-    // the flat array on a path-substring convention that would silently stop matching if
-    // CHANGES_DIR were ever renamed.
-    const proposals = openspec.artifacts;
-    const proposalSet = new Set(proposals);
-    const kiro = artifacts.filter((a) => !proposalSet.has(a));
-
     console.log(dryRun ? 'Dry run — nothing was written. Would write:' : `Wrote ${artifacts.length} artifact(s):`);
-    console.log('\nKiro spec triad (certain — independent of any external tool):');
-    for (const a of kiro) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
-    console.log('\nOpenSpec change proposals (contingent on the CLI being reachable):');
-    if (proposals.length > 0) {
-      for (const a of proposals) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
-    } else {
-      console.log('  (none written — see OpenSpec status below)');
-    }
+    for (const a of artifacts) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
 
     // The consent gate: commands/spec.md tells the agent to name these to the user before
     // applying, which it can only do if the preview actually reports them. tasks.md matters
@@ -79,17 +62,6 @@ if (subcommand === 'apply') {
     if (skipped.length > 0) {
       console.log('\nLeft in place:');
       for (const s of skipped) console.log(`  ~ ${s}`);
-    }
-
-    // openspec.reason is printed whenever it is present, regardless of openspec.status. On a
-    // dry run status is 'written' (the interface only allows 'written' | 'deferred', and a
-    // preview is not a failure) but reason still carries the "nothing has been written yet"
-    // caveat — gating this to the deferred branch alone would silently drop that caveat from
-    // every dry run.
-    if (openspec.reason) {
-      console.log(`\nOpenSpec: ${dryRun ? 'DRY RUN' : 'DEFERRED'}`);
-      console.log(`  ${openspec.reason}`);
-      console.log(`  ${dryRun ? 'Would run' : 'Run this when the CLI is reachable'}: ${openspec.command}`);
     }
 
     if (!dryRun) {

@@ -133,3 +133,20 @@ test('tables are built with renderTable, which escapes "|" in cell content', asy
   assert.ok(!cov.includes('`technical-implementation | xss`'),
     'the raw, unescaped pipe must not appear in the coverage table — only the escaped form');
 });
+
+test('the work-to-do section appears only when something is marked delivered, and lists the rest', async () => {
+  const plain = await fx('h0-requirements.json');
+  assert.doesNotMatch(renderRequirements(plain, await fx('h0-architecture.json')), /## Work to do/);
+
+  const reqs = await fx('h0-requirements.json');
+  const all = reqs.features.flatMap((f) => f.requirements);
+  all.forEach((r) => { r.state = 'delivered'; });
+  all[0].state = 'to_build';
+  const md = renderRequirements(reqs, await fx('h0-architecture.json'));
+  const work = section(md, '## Work to do', '## Non-functional');
+  assert.ok(work, 'the section must be present');
+  assert.ok(work.includes(`**${all[0].id}**`));
+  assert.ok(!work.includes(`**${all[1].id}**`), 'a delivered requirement is not new work');
+  assert.match(md, /\*\(delivered — to prove\)\*/);
+  assert.match(md, /\*\(to build\)\*/);
+});

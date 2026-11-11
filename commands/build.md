@@ -16,20 +16,31 @@ This names the next must-have feature not yet fully checked off in its
 ## Step 2 — Assemble the context and hand off
 
 Read the feature's `design.md`, `requirements.md` (from the same `specs/NNNN-<slug>/`
-folder), its `features/<slug>.feature` Gherkin, `AGENTS.md`, and `.koud/stack.md`.
+folder), its `features/<slug>.feature` Gherkin, `AGENTS.md`, and `.koud/stack.md`. If the
+project kept koud's files inside `.koud/`, the Gherkin and `AGENTS.md` are under
+`.koud/out/` at the same relative path.
 
 Load the `test-driven-build` skill and follow it with that feature's `tasks.md` as the
 plan. `tasks.md` is not background reading — it *is* the plan, executed checkbox by
 checkbox, each one ending in `test → confirm it fails → implement → suite → commit`,
 exactly as it was rendered.
 
-The failing-test step is not optional. If a task's test passes before any implementation
-exists, the test is not testing the task: stop and fix the test first.
+`tasks.md` holds two kinds of task, and each is labelled:
 
-**Do not read the OpenSpec change proposal for this feature** (the folder OpenSpec calls
-`changes/<slug>/`). It is a record for reviewers, not build context: `tasks.md`,
-`design.md` and the Gherkin file already carry everything the build needs, and a second
-description of the same feature is a second thing that can disagree with them.
+- **Build** — new work. The failing-test step is not optional: if the test passes before
+  any implementation exists, the test is not testing the task. Stop and fix the test first.
+- **Prove** — behaviour the project already has. The test is expected to pass at once. If
+  it fails, **stop**: you have found a gap between what the project claims and what it
+  does. Report it to the user with the failing output before changing any code — closing
+  it may be a one-line fix or a decision about scope, and that call is theirs.
+
+**Say before you start anything that outlives the command.** A database container, a
+development server, Docker itself: tell the user what you are about to start and why, and
+start it only once they have seen that. Say at the end what is still running.
+
+**Do not commit what is not this task.** Stage the files the task changed, by name. An
+uncommitted change that was in the worktree before the build began is the user's, not
+yours.
 
 If this is the last must-have feature, confirm the product can be started and reached the
 way the README says before moving to Step 3.

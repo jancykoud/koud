@@ -8,7 +8,7 @@ import { BEGIN, END, isFullyManaged } from '../../scripts/lib/markers.mjs';
 
 const byPath = (actions, p) => actions.find((a) => a.path === p);
 
-test('greenfield plan creates .koud and needs no consent', async () => {
+test('greenfield plan creates .koud without consent, and asks before any file at the project root', async () => {
   await withTmpDir(async (dir) => {
     const { actions } = await planInit(dir);
     assert.ok(byPath(actions, '.koud'), 'should create .koud');
@@ -17,8 +17,12 @@ test('greenfield plan creates .koud and needs no consent', async () => {
     // disk (asserted separately below), since starting a repo is a decision in its
     // own right, not a byproduct of "did we clobber something pre-existing".
     const fileActions = actions.filter((a) => a.kind !== 'git-init');
-    assert.equal(fileActions.every((a) => a.needsConsent === false), true,
-      'nothing pre-existing means nothing to consent to');
+    const inside = fileActions.filter((a) => a.path === '.koud' || a.path.startsWith('.koud/'));
+    const outside = fileActions.filter((a) => !inside.includes(a));
+    assert.equal(inside.every((a) => a.needsConsent === false), true, '.koud/ is ours to write');
+    assert.deepEqual(outside.map((a) => a.path).sort(), ['AGENTS.md', 'CLAUDE.md']);
+    assert.equal(outside.every((a) => a.needsConsent === true), true,
+      'a new file at the project root is the user\'s decision even when nothing is overwritten');
   });
 });
 

@@ -84,7 +84,7 @@ test('init --apply --consent trims whitespace so a space-separated list still ma
     await import('node:fs/promises').then(({ writeFile }) =>
       writeFile(path.join(dir, 'CLAUDE.md'), '# mine\n'));
     const { stdout } = await run(
-      'node', [path.join(scripts, 'init.mjs'), dir, '--apply', '--consent', 'CLAUDE.md, .'],
+      'node', [path.join(scripts, 'init.mjs'), dir, '--apply', '--consent', 'CLAUDE.md, ., AGENTS.md'],
     );
 
     const after = await readFile(path.join(dir, 'CLAUDE.md'), 'utf8');
@@ -210,7 +210,25 @@ test('brief.mjs apply removes the draft it was applied from, and backs up the br
     assert.match(preview.stdout, /! \.koud\/brief\.json/, 'the previous brief really is about to be replaced');
     await readFile(draft, 'utf8'); // a dry run leaves the draft where it is
 
-    const second = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft]);
+    assert.match(preview.stdout, /Changes from the current brief/);
+    assert.match(preview.stdout, /~ identity\.one_liner changed/);
+
+    // Replacing a brief the user has already seen is their decision: without --replace
+    // the apply refuses, says what would change, and leaves both files as they were.
+    await assert.rejects(
+      run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft]),
+      (err) => {
+        assert.equal(err.code, 3);
+        assert.match(err.stderr, /would replace the current brief/);
+        assert.match(err.stderr, /~ identity\.one_liner changed/);
+        return true;
+      },
+    );
+    const untouched = JSON.parse(await readFile(path.join(dir, '.koud', 'brief.json'), 'utf8'));
+    assert.notEqual(untouched.identity.one_liner, 'A different one-liner.');
+    await readFile(draft, 'utf8'); // a refused apply leaves the draft where it is
+
+    const second = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft, '--replace']);
     assert.match(second.stdout, /Backed up before overwriting:/);
     assert.match(second.stdout, /~ \.koud\/brief\.json/);
     const applied = JSON.parse(await readFile(path.join(dir, '.koud', 'brief.json'), 'utf8'));
@@ -430,7 +448,7 @@ test('architect.mjs apply --dry-run reports without writing', async () => {
 test('architect.mjs apply writes the eight artifacts end to end and gates the phase', async () => {
   await withTmpDir(async (dir) => {
     await seedForArchitect(dir);
-    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir]);
+    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--allow-project-writes']);
     assert.match(stdout, /Wrote 8 artifact\(s\)/);
     assert.match(stdout, /awaiting_approval/);
     const state = JSON.parse(await readFile(path.join(dir, '.koud', 'state.json'), 'utf8'));
@@ -443,7 +461,7 @@ test('architect.mjs apply reports a backup when AGENTS.md already exists', async
   await withTmpDir(async (dir) => {
     await seedForArchitect(dir);
     await writeFile(path.join(dir, 'AGENTS.md'), '# Mine\n\nHand-written rule.\n', 'utf8');
-    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir]);
+    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--allow-project-writes']);
     assert.match(stdout, /Backed up before overwriting/);
     assert.match(stdout, /AGENTS\.md/);
     const after = await readFile(path.join(dir, 'AGENTS.md'), 'utf8');
@@ -458,7 +476,7 @@ test('architect.mjs apply refuses an invalid payload with exit 1', async () => {
     bad.edges.push({ from: 'web', to: 'ghost' });
     await writeFile(path.join(dir, '.koud', 'architecture.json'), JSON.stringify(bad), 'utf8');
     await assert.rejects(
-      () => run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir]),
+      () => run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--allow-project-writes']),
       (err) => {
         assert.equal(err.code, 1);
         assert.match(err.stderr, /refusing to apply/);
@@ -522,7 +540,7 @@ test('requirements.mjs apply --dry-run reports without writing', async () => {
 test('requirements.mjs apply writes the artifacts end to end and gates the phase', async () => {
   await withTmpDir(async (dir) => {
     await seedForRequirements(dir);
-    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']);
     assert.match(stdout, /Wrote 4 artifact\(s\)/);
     assert.match(stdout, /awaiting_approval/);
     const state = JSON.parse(await readFile(path.join(dir, '.koud', 'state.json'), 'utf8'));
@@ -538,7 +556,7 @@ test('requirements.mjs apply reports a stale feature file as left in place', asy
     await seedForRequirements(dir);
     await mkdir(path.join(dir, 'features'), { recursive: true });
     await writeFile(path.join(dir, 'features', 'removed-feature.feature'), 'Feature: old\n', 'utf8');
-    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']);
     assert.match(stdout, /Left in place/);
     assert.match(stdout, /removed-feature/);
     const still = await readFile(path.join(dir, 'features', 'removed-feature.feature'), 'utf8');
@@ -549,9 +567,9 @@ test('requirements.mjs apply reports a stale feature file as left in place', asy
 test('requirements.mjs apply reports a backup when requirements.md already exists', async () => {
   await withTmpDir(async (dir) => {
     await seedForRequirements(dir);
-    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']);
     await writeFile(path.join(dir, '.koud', 'requirements.md'), '# Mine\n\nHand-written.\n', 'utf8');
-    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    const { stdout } = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']);
     assert.match(stdout, /Backed up before overwriting/);
     assert.match(stdout, /requirements\.md/);
     // seedForRequirements() drops a requirements.json in place, so the FIRST apply above
@@ -574,7 +592,7 @@ test('requirements.mjs apply refuses an invalid payload with exit 1', async () =
     bad.features[0].priority = 'critical';
     await writeFile(path.join(dir, '.koud', 'requirements.json'), JSON.stringify(bad), 'utf8');
     await assert.rejects(
-      () => run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]),
+      () => run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']),
       (err) => {
         assert.equal(err.code, 1);
         assert.match(err.stderr, /refusing to apply/);
@@ -586,15 +604,8 @@ test('requirements.mjs apply refuses an invalid payload with exit 1', async () =
 
 // --- spec.mjs ----------------------------------------------------------------------------
 //
-// These tests use --dry-run exclusively (except the invalid-payload case, which throws
-// before either code path reaches OpenSpec). applySpec's non-dry-run apply calls
-// runOpenspec()'s real default exec, which shells out to `npx @fission-ai/openspec` — a real
-// network-dependent process spawn with no injection point through the CLI. That end-to-end
-// write path (with both a live and a stubbed-dead exec) is already covered without any real
-// process spawn by tests/lib/spec-apply.test.mjs, which calls applySpec() directly and
-// injects okExec/deadExec. --dry-run never reaches exec at all (runOpenspec returns before
-// checking for the CLI when dryRun is true), so it is the only apply path safe to drive
-// through the actual CLI binary here.
+// spec.mjs writes only under .koud/specs and spawns nothing, so both the preview and the
+// real apply are safe to drive through the CLI binary.
 
 async function seedForSpec(dir) {
   await run('node', [path.join(scripts, 'init.mjs'), dir, '--apply']);
@@ -606,35 +617,27 @@ async function seedForSpec(dir) {
   await copyFile(requirementsFixture, path.join(dir, '.koud', 'requirements.json'));
 }
 
-test('spec.mjs apply --dry-run labels the Kiro triad and the OpenSpec proposals as two separate groups', async () => {
+test('spec.mjs apply --dry-run lists the triad and writes nothing', async () => {
   await withTmpDir(async (dir) => {
     await seedForSpec(dir);
     const { stdout } = await run('node', [path.join(scripts, 'spec.mjs'), 'apply', dir, '--dry-run']);
     assert.match(stdout, /Dry run/);
-    const kiroAt = stdout.indexOf('Kiro spec triad');
-    const proposalsAt = stdout.indexOf('OpenSpec change proposals');
-    assert.ok(kiroAt !== -1, 'the Kiro triad group must be labelled');
-    assert.ok(proposalsAt !== -1, 'the OpenSpec proposals group must be labelled');
-    assert.ok(kiroAt < proposalsAt, 'the certain group is listed before the contingent one');
-    assert.match(stdout.slice(kiroAt, proposalsAt), /0001-shared-care-record.*tasks\.md/s);
-    assert.match(stdout.slice(proposalsAt), /openspec\/changes/);
+    assert.match(stdout, /0001-shared-care-record.*tasks\.md/s);
+    assert.doesNotMatch(stdout, /openspec/i, 'spec no longer drives any external tool');
     await assert.rejects(() => access(path.join(dir, '.koud', 'specs')), /ENOENT/);
     const state = JSON.parse(await readFile(path.join(dir, '.koud', 'state.json'), 'utf8'));
     assert.equal(state.phases.spec.status, 'not_started');
   });
 });
 
-test('spec.mjs apply --dry-run surfaces the OpenSpec reason even though status is not deferred', async () => {
+test('spec.mjs apply writes only under .koud/specs and creates no openspec folder', async () => {
   await withTmpDir(async (dir) => {
     await seedForSpec(dir);
-    const { stdout } = await run('node', [path.join(scripts, 'spec.mjs'), 'apply', dir, '--dry-run']);
-    // Task 22's interface only permits status 'written' | 'deferred', and a dry run is not a
-    // failure, so status reads 'written' here — but the reason still carries the "nothing has
-    // been written yet" caveat. Gating the print to the deferred branch alone (as the original
-    // brief sample did) would silently drop that caveat from every dry run.
-    assert.match(stdout, /OpenSpec: DRY RUN/);
-    assert.match(stdout, /nothing has been written yet/);
-    assert.doesNotMatch(stdout, /OpenSpec: DEFERRED/);
+    const { stdout } = await run('node', [path.join(scripts, 'spec.mjs'), 'apply', dir]);
+    assert.match(stdout, /Wrote \d+ artifact/);
+    await access(path.join(dir, '.koud', 'specs', '0001-shared-care-record', 'tasks.md'));
+    await assert.rejects(() => access(path.join(dir, 'openspec')), /ENOENT/);
+    await assert.rejects(() => access(path.join(dir, '.claude')), /ENOENT/);
   });
 });
 
@@ -707,7 +710,8 @@ test('stack.mjs apply --dry-run stays silent about an in-place payload and names
 test('architect.mjs apply --dry-run stays silent about an in-place payload and names real artifacts', async () => {
   await withTmpDir(async (dir) => {
     await seedForArchitect(dir);
-    // :init itself lays down AGENTS.md and CLAUDE.md, and both are :architect artifacts.
+    // An AGENTS.md the project already has is an :architect artifact too.
+    await writeFile(path.join(dir, 'AGENTS.md'), '# Mine\n', 'utf8');
     const first = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
     assert.match(first.stdout, /Would overwrite:/);
     assert.match(first.stdout, /! AGENTS\.md/);
@@ -732,7 +736,7 @@ test('requirements.mjs apply --dry-run stays silent about an in-place payload an
     const first = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--dry-run']);
     assert.doesNotMatch(first.stdout, /Would overwrite:/);
 
-    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--allow-project-writes']);
     const rerun = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--dry-run']);
     assert.match(rerun.stdout, /! \.koud\/requirements\.md/);
     assert.doesNotMatch(rerun.stdout, /! \.koud\/requirements\.json/);
@@ -752,6 +756,90 @@ test('brief.mjs apply --dry-run stays silent about an in-place payload and names
 
     const external = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', fixture, '--dry-run']);
     assert.match(external.stdout, /! \.koud\/brief\.json/);
+  });
+});
+
+// --- the project-write consent gate ------------------------------------------------------
+//
+// First real run (0.2.0, on an existing monorepo): :architect and :requirements created
+// AGENTS.md, docs/ and features/ at the project root without the user ever seeing a list.
+// A real apply now refuses to write outside .koud/ until a flag records the user's answer.
+
+test('architect.mjs apply refuses to write outside .koud without a decision, and writes nothing', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForArchitect(dir);
+    await assert.rejects(
+      run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir]),
+      (err) => {
+        assert.equal(err.code, 3, 'a distinct exit code: ask the user, this is not a failure');
+        assert.match(err.stderr, /outside \.koud\//);
+        assert.match(err.stderr, /\+ \(new\) docs\/architecture\.md/);
+        assert.match(err.stderr, /--allow-project-writes/);
+        assert.match(err.stderr, /--koud-only/);
+        return true;
+      },
+    );
+    await assert.rejects(() => access(path.join(dir, 'docs')), /ENOENT/);
+    await assert.rejects(() => access(path.join(dir, 'AGENTS.md')), /ENOENT/);
+    const state = JSON.parse(await readFile(path.join(dir, '.koud', 'state.json'), 'utf8'));
+    assert.equal(state.phases.architect.status, 'not_started');
+  });
+});
+
+test('architect.mjs apply --koud-only keeps every file inside .koud and still gates the phase', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForArchitect(dir);
+    await writeFile(path.join(dir, 'CLAUDE.md'), '# Mine\n', 'utf8');
+    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--koud-only']);
+    assert.match(stdout, /Wrote 8 artifact\(s\)/);
+    await access(path.join(dir, '.koud', 'out', 'docs', 'architecture.md'));
+    await access(path.join(dir, '.koud', 'out', 'AGENTS.md'));
+    await assert.rejects(() => access(path.join(dir, 'docs')), /ENOENT/);
+    await assert.rejects(() => access(path.join(dir, 'AGENTS.md')), /ENOENT/);
+    assert.equal(await readFile(path.join(dir, 'CLAUDE.md'), 'utf8'), '# Mine\n',
+      'the project\'s own CLAUDE.md is read, never written');
+    const state = JSON.parse(await readFile(path.join(dir, '.koud', 'state.json'), 'utf8'));
+    assert.equal(state.phases.architect.status, 'awaiting_approval');
+  });
+});
+
+test('architect.mjs apply rejects both write flags together', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForArchitect(dir);
+    await assert.rejects(
+      run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--koud-only', '--allow-project-writes']),
+      (err) => { assert.equal(err.code, 1); assert.match(err.stderr, /contradict/); return true; },
+    );
+  });
+});
+
+test('architect.mjs apply --dry-run names the files outside .koud as the user\'s decision', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForArchitect(dir);
+    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
+    assert.match(stdout, /Outside \.koud\/ \(7\)/);
+    assert.match(stdout, /> AGENTS\.md/);
+  });
+});
+
+test('requirements.mjs apply refuses to create features/ without a decision', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForRequirements(dir);
+    await assert.rejects(
+      run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]),
+      (err) => { assert.equal(err.code, 3); assert.match(err.stderr, /features\/shared-care-record\.feature/); return true; },
+    );
+    await assert.rejects(() => access(path.join(dir, 'features')), /ENOENT/);
+  });
+});
+
+test('requirements.mjs apply --koud-only writes the Gherkin under .koud/out/features', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForRequirements(dir);
+    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--koud-only']);
+    const feature = await readFile(path.join(dir, '.koud', 'out', 'features', 'shared-care-record.feature'), 'utf8');
+    assert.match(feature, /^Feature: /);
+    await assert.rejects(() => access(path.join(dir, 'features')), /ENOENT/);
   });
 });
 

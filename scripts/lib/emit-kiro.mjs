@@ -160,17 +160,34 @@ function kiroTasks(f) {
   out.push('');
   out.push('Work these in order. Each ends green before the next begins.');
   out.push('');
+  const anyDelivered = (f.requirements ?? []).some((r) => r.state === 'delivered');
+  if (anyDelivered) {
+    out.push('Two kinds of task. **Build** is new work: the test fails first, then the code');
+    out.push('makes it pass. **Prove** is behaviour the project already has: the test is');
+    out.push('expected to pass at once, and a failure is a finding to report, not a task to');
+    out.push('fix quietly.');
+    out.push('');
+  }
   let n = 0;
   for (const r of f.requirements ?? []) {
     const scenarios = (f.scenarios ?? []).filter((s) => s.requirement_ref === r.id);
+    const ids = scenarios.map((s) => s.id).join(', ') || r.id;
+    const plural = scenarios.length > 1 ? 's' : '';
     n += 1;
-    out.push(`${n}. **${r.id}** — ${r.statement}`);
-    out.push(`   - [ ] Write the failing test${scenarios.length > 1 ? 's' : ''} for ` +
-      `${scenarios.map((s) => s.id).join(', ') || r.id}`);
-    out.push('   - [ ] Run and confirm it fails for the right reason');
-    out.push('   - [ ] Implement the minimum that makes it pass');
-    out.push('   - [ ] Run the suite');
-    out.push('   - [ ] Commit');
+    if (r.state === 'delivered') {
+      out.push(`${n}. **${r.id}** *(prove — already delivered)* — ${r.statement}`);
+      out.push(`   - [ ] Write the test${plural} for ${ids}, or point to the existing one${plural}`);
+      out.push('   - [ ] Run: it passes at once. If it fails, stop and report the gap before changing code');
+      out.push('   - [ ] Run the suite');
+      out.push('   - [ ] Commit');
+    } else {
+      out.push(`${n}. **${r.id}**${anyDelivered ? ' *(build)*' : ''} — ${r.statement}`);
+      out.push(`   - [ ] Write the failing test${plural} for ${ids}`);
+      out.push('   - [ ] Run and confirm it fails for the right reason');
+      out.push('   - [ ] Implement the minimum that makes it pass');
+      out.push('   - [ ] Run the suite');
+      out.push('   - [ ] Commit');
+    }
     out.push('');
   }
   out.push('## Validation');

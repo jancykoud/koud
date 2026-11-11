@@ -17,8 +17,23 @@ same five steps, in order, with nothing skipped:
    ask for.
 4. **Suite.** Run the whole test suite, not just the new test. A green new test over a red
    suite is a regression, not progress.
-5. **Commit.** One commit per task, its message naming the task. Then tick the box in
-   `tasks.md`.
+5. **Commit.** One commit per task, its message naming the task, staging by name only the
+   files the task changed — never an uncommitted change that was already in the worktree.
+   Then tick the box in `tasks.md`.
+
+## Prove tasks
+
+A task labelled **prove** covers behaviour the project already has. It has no "confirm it
+fails" step, because there is nothing to implement:
+
+1. **Test.** Write the test the task names, or point to the existing one that already
+   covers it — a second test for the same behaviour is noise.
+2. **Run it.** It is expected to pass at once.
+3. **Suite**, then **commit**, then tick the box.
+
+If the test fails, the project does not do what it was believed to do. That is a finding,
+not a task: stop, show the user the failing output, and let them decide whether it becomes
+a build task. Do not fix it quietly and tick the box.
 
 Progress lives in those checkboxes and nowhere else. `:build` reads them back to decide
 what is next, so a box ticked early is a lie the next session will believe.
@@ -63,8 +78,11 @@ it by hand in the main session and tick the box.
 
 Stop and tell the user, rather than improvising, when:
 
-- a task cannot be made to fail first (the behaviour already exists, or the task is not
-  testable as written);
+- a **build** task cannot be made to fail first (the behaviour already exists, or the
+  task is not testable as written);
+- a **prove** task fails;
+- running the tests needs something that is not running — a database, a container, Docker
+  itself. Say what you would start and why, and start it once the user has seen that;
 - the task contradicts `design.md`, an invariant in `AGENTS.md`, or the stack;
 - the same task has failed review twice;
 - finishing the task would mean touching another feature's files in a way its spec does

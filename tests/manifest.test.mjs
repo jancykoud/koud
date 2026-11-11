@@ -46,7 +46,7 @@ const EXPECTED_AGENTS = [
 const EXPECTED_SKILLS = [
   'architecture-diagramming', 'backend-architecture', 'cicd-github-actions', 'containerization',
   'data-modeling', 'deploy-targets', 'framework-drift-guard', 'frontend-architecture',
-  'gherkin-requirements', 'iac-terraform', 'monorepo-structure', 'openspec-workflow',
+  'gherkin-requirements', 'iac-terraform', 'monorepo-structure',
   'project-brief', 'security-invariants', 'test-driven-build', 'ui-design-principles',
 ];
 

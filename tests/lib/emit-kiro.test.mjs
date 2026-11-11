@@ -200,3 +200,49 @@ test('emitKiro is deterministic', async () => {
   const a = await fx('h0-architecture.json');
   assert.deepEqual([...emitKiro(r, a)], [...emitKiro(r, a)]);
 });
+
+// --- prove vs build ----------------------------------------------------------------------
+//
+// First real run on an existing project: every tasks.md asked for a failing test first,
+// including for behaviour already in the code, where the test passes at once. A requirement
+// can now say it is already delivered, and its task is rendered as evidence, not as work.
+
+async function withStates(states) {
+  const reqs = await fx('h0-requirements.json');
+  const feature = reqs.features.find((f) => f.priority === 'must');
+  feature.requirements.forEach((r, i) => { if (states[i] !== undefined) r.state = states[i]; });
+  return { reqs, feature };
+}
+
+test('a delivered requirement is rendered as a prove task with no failing-test step', async () => {
+  const { reqs, feature } = await withStates(['delivered']);
+  const tasks = [...emitKiro(reqs, await fx('h0-architecture.json')).values()][0]['tasks.md'];
+  const id = feature.requirements[0].id;
+  const start = tasks.indexOf(`**${id}**`);
+  const block = tasks.slice(start, tasks.indexOf('\n\n', start));
+  assert.match(block, /\*\(prove — already delivered\)\*/);
+  assert.match(block, /it passes at once\. If it fails, stop and report the gap before changing code/);
+  assert.doesNotMatch(block, /failing test/);
+  assert.doesNotMatch(block, /Implement the minimum/);
+  assert.match(tasks, /Two kinds of task/);
+});
+
+test('with no state anywhere, tasks.md is the plain test-first cycle with no build or prove label', async () => {
+  const { reqs } = await withStates([]);
+  const tasks = [...emitKiro(reqs, await fx('h0-architecture.json')).values()][0]['tasks.md'];
+  assert.doesNotMatch(tasks, /\(prove/);
+  assert.doesNotMatch(tasks, /\(build\)/);
+  assert.doesNotMatch(tasks, /Two kinds of task/);
+  assert.match(tasks, /Write the failing test/);
+});
+
+test('to_build next to delivered is labelled build and keeps the failing-test step', async () => {
+  const { reqs, feature } = await withStates(['delivered', 'to_build']);
+  if (feature.requirements.length < 2) feature.requirements.push({ id: 'FR-1.9', statement: 'A new behaviour.', state: 'to_build' });
+  const tasks = [...emitKiro(reqs, await fx('h0-architecture.json')).values()][0]['tasks.md'];
+  const id = feature.requirements[1].id;
+  const start = tasks.indexOf(`**${id}**`);
+  const block = tasks.slice(start, tasks.indexOf('\n\n', start));
+  assert.match(block, /\*\(build\)\*/);
+  assert.match(block, /Run and confirm it fails for the right reason/);
+});

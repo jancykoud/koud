@@ -16,3 +16,9 @@ test('leaves spent_hours unchanged when started_at is not set', () => {
   const result = computeSpentHours(state, { now: new Date(), sha: 'abc1234' });
   assert.equal(result.spent_hours, 3);
 });
+
+test('spent_hours is rounded to two decimals', () => {
+  const state = { ...createDefaultState({ pluginVersion: '0.3.0' }), brief: { name: 'x', started_at: '2026-11-11T00:18:52.807Z' } };
+  const { spent_hours } = computeSpentHours(state, { now: new Date('2026-11-11T01:26:39.112Z'), sha: 'b6918c9' });
+  assert.equal(spent_hours, 1.13);
+});

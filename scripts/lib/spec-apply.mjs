@@ -1,35 +1,22 @@
 /**
  * Applies a validated requirements.json (plus the architecture it was validated against) to
- * the project: writes the Kiro spec triad — requirements.md / design.md / tasks.md per
- * must-have feature — and drives OpenSpec to write one change proposal per must-have.
+ * the project: writes the spec triad — requirements.md / design.md / tasks.md per must-have
+ * feature — under `.koud/specs/`. Nothing here leaves `.koud/`, runs an external tool or
+ * touches the network.
  *
- * Close to the shape of stack-apply.mjs, architect-apply.mjs and requirements-apply.mjs —
- * validate, load state, compute in memory, then back up and write — with one deliberate
- * difference worth stating plainly, because the "nothing is written before everything is
- * computed" claim does not hold end to end here. The real order is: validate; load state;
- * compute the triad in memory; run OpenSpec, which writes `openspec/changes/<slug>/proposal.md`
- * to disk before the triad's backup loop runs. That write is non-destructive by nature —
- * each proposal is regenerated from the same payload and no other producer writes there — so
- * it costs nothing if a later step fails. The Kiro triad, which CAN destroy hand edits, is
- * computed, then backed up, then written, with nothing in between.
+ * Same shape as stack-apply.mjs, architect-apply.mjs and requirements-apply.mjs: validate,
+ * load state, compute everything in memory, then back up and write.
  *
  * A dry-run's contract is that the filesystem ends up exactly as it started — including an
- * old-schema state.json. migrateStateFile() would rewrite it before the preview even if
- * dryRun is true, so on a dry run the migration happens in memory only (same defect and fix
- * as applyStack's, applyArchitecture's and applyRequirements').
+ * old-schema state.json — so on a dry run the state migration happens in memory only.
  *
- * `.koud/specs/` is created unconditionally on every non-dry-run apply, even when the
- * triad map is empty (a requirements payload with zero must-have features — validateRequirements
- * permits this). The phase always declares SPECS_REL as its artifact regardless of feature
- * count, so a declaration that the directory exists must always be true, or an approved phase
- * drifts permanently (round-1 review finding: the same class of bug this file's own commit
- * message describes avoiding for openspec/, reintroduced here for the triad).
+ * `.koud/specs/` is created unconditionally on every non-dry-run apply, even when there is
+ * no must-have feature: the phase always declares that directory as its artifact, so the
+ * declaration must always be true or an approved phase drifts permanently.
  *
- * Every triad file is backed up before being overwritten, the same
- * protection stack-apply.mjs, architect-apply.mjs and requirements-apply.mjs give their own
- * generated files. tasks.md in particular is meant to be hand-edited — it is a checklist
- * the build agent ticks off as it works — so clobbering it silently on a rerun is worse here
- * than for any other generated file in the plugin (round-1 review finding).
+ * Every triad file is backed up before being overwritten. tasks.md in particular is a
+ * checklist the build agent ticks off as it works, so clobbering it silently on a rerun
+ * would be worse here than for any other generated file in the plugin.
  */
 import { mkdir, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -38,7 +25,6 @@ import { readState, writeState, migrateStateFile, readMigratedState } from './st
 import { openBackupSet, existingPaths } from './backup.mjs';
 import { validateRequirements } from './requirements-schema.mjs';
 import { emitKiro } from './emit-kiro.mjs';
-import { runOpenspec } from './openspec.mjs';
 
 const SPECS_REL = `${KOUD_DIR}/${SPECS_DIR}`;
 
@@ -49,7 +35,7 @@ function folderSlug(name) {
 }
 
 export async function applySpec(
-  root, { requirements, architecture, exec, dryRun = false, stamp: stampOverride } = {},
+  root, { requirements, architecture, dryRun = false, stamp: stampOverride } = {},
 ) {
   const { valid, errors, warnings } = validateRequirements(requirements, { architecture });
   if (!valid) {
@@ -71,7 +57,7 @@ export async function applySpec(
 
   // emitKiro() numbers folders by position in the must-have list, so reprioritising features
   // between two applies renumbers every folder after the change. A feature's identity is its
-  // slug, though — validated unique, and what emit-gherkin.mjs and openspec.mjs key on — so
+  // slug, though — validated unique, and what emit-gherkin.mjs keys on — so
   // an existing folder is matched by its `-<slug>` suffix, not by its full name, and reused
   // under the name it already has. Without this, demoting one must-have orphans every later
   // feature's folder: a build agent's ticked-off tasks.md is stranded under a name nothing
@@ -113,14 +99,11 @@ export async function applySpec(
     for (const name of Object.keys(files)) artifacts.push(`${SPECS_REL}/${dir}/${name}`);
   }
 
-  const openspec = await runOpenspec(root, requirements, architecture, { exec, dryRun });
-  artifacts.push(...openspec.artifacts);
-
   // A preview must say what it would destroy — tasks.md above all, which a build agent ticks
   // off — or the command file's overwrite-consent step has no output to act on. Read-only.
   if (dryRun) {
     return {
-      artifacts, openspec, skipped, backedUp: [], warnings,
+      artifacts, skipped, backedUp: [], warnings,
       wouldOverwrite: await existingPaths(root, artifacts),
     };
   }
@@ -154,8 +137,6 @@ export async function applySpec(
     }
   }
 
-  // Only the specs directory is declared. openspec/ may legitimately be absent when the CLI
-  // was unreachable, and declaring it would make the drift check fire on a correct state.
   const next = {
     ...state,
     phases: {
@@ -165,5 +146,5 @@ export async function applySpec(
   };
   await writeState(root, next);
 
-  return { artifacts, openspec, skipped, backedUp, warnings, backupStamp: set.stamp };
+  return { artifacts, skipped, backedUp, warnings, backupStamp: set.stamp };
 }

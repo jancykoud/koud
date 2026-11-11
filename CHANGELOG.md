@@ -3,6 +3,65 @@
 Releases are cut by tag. Each version gets one section here, and the release workflow
 publishes that section as the GitHub Release notes.
 
+## [0.3.0] - 2026-11-11
+
+Driven by the first run from `:brief` to `:build` on an existing monorepo. The workflow
+held and found a real defect in the project. It also took several liberties with the
+project it was working on; this release removes them.
+
+### Changed — things the plugin no longer does without asking
+
+- **Writing outside `.koud/`.** `:architect` and `:requirements` created `AGENTS.md`,
+  `docs/` and `features/` at the project root without showing a list first. A real apply
+  now refuses (exit code 3, nothing written) unless `--allow-project-writes` or
+  `--koud-only` records the user's answer. `--koud-only` writes the same files under
+  `.koud/out/`; `:build` reads them from there.
+- **Creating `AGENTS.md` and `CLAUDE.md` at `:init`.** Creating a file at the project root
+  now needs the same per-file yes as changing one.
+- **Replacing an approved brief.** A re-run of `:brief` applied a new brief without
+  asking. The preview now lists what changes, and the apply refuses without `--replace`.
+- **Deploying.** `:ship` first returns a plan — services, environments, files, commands —
+  and stops. Nothing is written or deployed until the user approves it, and production is
+  asked about by name.
+- **Starting services and committing.** `:build` says what it is about to start (Docker, a
+  database) before starting it, and stages only the files a task changed.
+
+### Added
+
+- **Consent hook.** A `PreToolUse` hook turns an apply carrying a consent flag, and any
+  deploy command, into a permission prompt, so a yes the agent assumed still has to be
+  given by a person.
+- **`state` on a requirement**: `delivered` or `to_build`. On an existing project every
+  task used to demand a failing test first, including for behaviour already in the code.
+  A delivered requirement is now a *prove* task: the test is expected to pass, and a
+  failure is reported instead of quietly fixed. `requirements.md` lists the new work on
+  its own.
+- **`.koud/.gitignore`** excludes `backups/`, written on the first backup. A backup is a
+  verbatim copy and can hold an uncommitted edit.
+- The architect is told what the `existing` track means: describe the architecture the
+  code has, report gaps with file and line, and say which it verified.
+
+### Removed
+
+- **OpenSpec.** `:spec` ran `npx @fission-ai/openspec`, which downloaded and executed an
+  external tool, wrote twelve files into `.claude/`, and produced proposals its own
+  validator rejected. `:spec` now writes only under `.koud/specs/` and spawns nothing. The
+  `openspec-workflow` skill is gone.
+
+### Fixed
+
+- **Invented values.** A scenario carried an amount taken from a seed file, and the design
+  system carried a font size and breakpoints nobody had read anywhere. Commands, the
+  architect and the brief skill now require every concrete value to be read from the
+  brief, the code or the user — or left out, or listed apart as a proposal.
+- `spent_hours` was stored as `1.1295291666666667`. It is rounded to two decimals.
+
+### Upgrading
+
+Nothing to migrate. A project set up with 0.2.0 keeps working; the next `:architect` or
+`:requirements` run will ask where its files should go. An `openspec/` folder and
+`.claude/commands/opsx*`, `.claude/skills/openspec-*` left by 0.2.0 can be deleted.
+
 ## [0.2.0] - 2026-11-11
 
 Driven by the first real run of `:brief`, on an existing monorepo with an API, a web app

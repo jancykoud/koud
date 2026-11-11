@@ -34,7 +34,7 @@ jobs:
       - run: gcloud run deploy web --source web --region us-central1
 ```
 
-`next-monolith` repos need only one such workflow, filtered on the whole repo (no
+`single-app` repos need only one such workflow, filtered on the whole repo (no
 `paths:` restriction is meaningful when there is only one service).
 
 ## Test-then-deploy, always in that order

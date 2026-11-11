@@ -75,7 +75,7 @@ root.
 
 | Phase | Artifacts |
 |---|---|
-| `:brief` | `brief.json`, `brief.md` (success criteria, technology, constraints), `project.md` (the product and who it is for) |
+| `:brief` | `brief.json`, `brief.md` (scope, success criteria, core technology and tooling, constraints), `project.md` (the product and who it is for) |
 | `:stack` | `stack.json`, `stack.md` — every slot with a source (`required`, `preferred`, `default`, `replacement`) and a reason |
 | `:architect` | `architecture.json`, `docs/architecture.md`, `docs/data-model.md`, diagrams, plus `AGENTS.md` and `CLAUDE.md` blocks at the repository root |
 | `:requirements` | `requirements.json`, `requirements.md`, `features/<slug>.feature` (executable Gherkin) |
@@ -91,7 +91,8 @@ The shape and rules of every payload are in [`docs/contracts.md`](docs/contracts
 These are mechanical, not conventions:
 
 - Every success criterion has a statement someone could check. "Fast" is rejected.
-- Every technology the brief requires carries a reason, and is covered by a stack slot.
+- Every technology the brief requires carries a reason, and every core one is covered by a
+  stack slot.
 - A stack slot may not use a technology the brief forbids.
 - Every date carries an explicit UTC offset. A floating `2027-01-15T17:00:00` is rejected.
 - A success criterion no feature claims fails `:requirements`: nothing would be built to
@@ -104,6 +105,7 @@ These are mechanical, not conventions:
 | Event | What it does |
 |---|---|
 | Session start | Injects the project, track, deadline, success criteria, approved phases, next phase and required technology. Silent in a project with no `.koud/`. |
+| Before a file tool or a shell command | Denies reading secrets files (`.env`, private keys, keystores) and asks before editing them or running a command that names them. Templates such as `.env.example` pass. Only acts in a project with a `.koud/` directory. |
 | After a `git commit` | Stamps the commit and the elapsed time into the state. |
 | Stop | When the session hit real failures and `challenges.md` was not updated, lists up to three of them and points at `/koud:log`. |
 
@@ -112,20 +114,21 @@ exits cleanly.
 
 ## Status and limits
 
-This is version 0.1.0, the first milestone of the fork.
+This is version 0.2.0.
 
-- **The two tracks share one path.** `:brief` records whether a project is `new` or
-  `existing` and treats technology accordingly, but there is not yet a dedicated phase
-  that analyses an existing repository in depth.
-- **Repository shapes are still `next-monolith` and `multi-service`**, and the frontend
-  and backend skills are written around Next.js and FastAPI. A project on another stack
-  can use the workflow, but those skills and the shape names do not fit it yet.
-- **`:ship` and `:review` are inherited as they were** and have only been exercised here
-  through the test suite, not on a live deployment.
+- **Tried once for real.** `:init` and `:brief` have run in Claude Code on one existing
+  monorepo (an API, a web app and a mobile app). The phases after `:brief` have only been
+  exercised through the test suite and from the command line with example payloads.
+- **The frontend and backend skills are written around Next.js and FastAPI**, and cite one
+  reference project. On another stack the workflow and its validators apply; those skills
+  only partly do.
+- **`:ship` falls back to Vercel and Cloud Run** when the brief requires no cloud. Treat
+  its suggestion as a starting point.
+- **The secrets guard is a tripwire, not a sandbox.** It catches the ordinary cases; a
+  command built to evade it will.
 
-Planned next: an `:analyze` phase for existing repositories, stack-neutral repository
-shapes, a browser test loop, a security audit phase, and a map of what can be automated
-by a script, a workflow or an agent.
+Planned next: stack-neutral architecture skills, a browser test loop, a security audit
+phase, and a map of what can be automated by a script, a workflow or an agent.
 
 ## Development
 

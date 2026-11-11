@@ -20,8 +20,10 @@ skills before choosing anything.
 
 Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/ship.mjs suggest .` first. It prints a
 deterministic starting point — a cloud the brief requires wins outright when a `stack.json`
-slot's `source` is `"required"` and names a specific cloud; otherwise `next-monolith` →
-Vercel, `multi-service` → Cloud Run per service. Treat it as a starting point, not a final
+slot's `source` is `"required"` and names a specific cloud; otherwise it falls back to
+`single-app` → Vercel, `multi-service` → Cloud Run per service. Those fallbacks assume a
+web front end and containerised services: check them against `stack.json` and the hosting
+constraint in `brief.json` before using them. Treat the suggestion as a starting point, not a final
 answer: `deploy-targets`'s fuller table (Railway/Render as faster alternatives to Cloud
 Run, Docker Compose as a legitimate standalone target — first-class, not a failure state)
 can justify overriding it, and `deploy.json`'s `target` per service is what actually

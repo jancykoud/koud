@@ -386,5 +386,20 @@ test('the brief command dry-runs before it applies and stops at the gate', async
   const dryRun = md.indexOf('--dry-run');
   const apply = md.lastIndexOf('brief.mjs apply .');
   assert.ok(dryRun !== -1 && dryRun < apply, 'the preview must come before the write');
+  assert.match(md, /brief\.draft\.json/, 'the payload is written as a draft so a re-run can back up the old brief');
   assert.match(md, /Do not continue to `:stack` without an explicit yes/);
+});
+
+test('the brief command forbids reading secrets files', async () => {
+  const md = await readCommand('brief.md');
+  assert.match(md, /Never read a secrets file/);
+  assert.match(md, /\.env\.example/);
+});
+
+test('the brief command asks for the scope first and separates core from tooling, system from outcome', async () => {
+  const md = await readCommand('brief.md');
+  const questions = md.slice(md.indexOf('Then ask the user'), md.indexOf('## Step 3'));
+  assert.match(questions, /1\. Does this brief cover the whole product/);
+  assert.match(md, /"role": "tooling"/);
+  assert.match(md, /"kind": "outcome"/);
 });

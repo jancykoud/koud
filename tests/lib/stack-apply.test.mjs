@@ -31,7 +31,7 @@ function section(md, heading, nextHeading) {
 
 test('the shape and its rationale come before the slot table', async () => {
   const md = renderStack(await fixture('h0-stack.json'));
-  const shape = md.indexOf('next-monolith');
+  const shape = md.indexOf('single-app');
   const table = md.indexOf('| Slot |');
   assert.ok(shape !== -1 && table !== -1, 'both the shape and the slot table must be present');
   assert.ok(shape < table, 'the reader needs the shape before the parts list that assumes it');
@@ -123,7 +123,7 @@ test('applyStack writes both artifacts and parks the phase at the gate', async (
     assert.equal(after.phases.stack.status, 'awaiting_approval',
       'nothing advances without an explicit approval');
     assert.deepEqual(after.phases.stack.artifacts, artifacts);
-    assert.equal(after.project.stack.repo_shape, 'next-monolith');
+    assert.equal(after.project.stack.repo_shape, 'single-app');
     assert.equal(after.project.stack.ref, '.koud/stack.json');
     assert.ok(Object.keys(after.compliance.required_tech_verified).length >= 1);
     assert.equal(after.project.stack.primary_database, 'Amazon Aurora PostgreSQL (Serverless v2, pgvector)',

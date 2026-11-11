@@ -93,7 +93,7 @@ test('the invariants corpus carries all four shapes with their prizes', async ()
 
 test('monorepo-structure carries both real shapes with their evidence project', async () => {
   const md = await readSkill('monorepo-structure');
-  const mono = md.slice(md.indexOf('## next-monolith'), md.indexOf('## multi-service'));
+  const mono = md.slice(md.indexOf('## single-app'), md.indexOf('## multi-service'));
   assert.match(mono, /\bKintwadi\b/);
   assert.match(mono, /\(app\)/, 'the protected route group is the load-bearing detail');
   const multi = md.slice(md.indexOf('## multi-service'));

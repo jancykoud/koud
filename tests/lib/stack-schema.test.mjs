@@ -40,6 +40,19 @@ test('an uncovered required technology is an ERROR, not a warning', async () => 
     'an uncovered mandate must not be downgraded to a warning — the brief requires it');
 });
 
+test('tooling recorded in the brief needs no stack slot; core technology still does', async () => {
+  const r = await brief();
+  r.tech.required.push({ name: 'Jest', role: 'tooling', reason: 'already in the codebase: jest.config.ts' });
+  const covered = validateStack(await golden(), r);
+  assert.equal(covered.valid, true, covered.errors.join('; '));
+
+  r.tech.required.push({ name: 'Redis', role: 'core', reason: 'the job queue runs on it' });
+  const uncovered = validateStack(await golden(), r);
+  assert.equal(uncovered.valid, false);
+  assert.ok(uncovered.errors.some((e) => /required tech "redis"/.test(e)), uncovered.errors.join('; '));
+  assert.ok(!uncovered.errors.some((e) => /jest/i.test(e)), 'tooling must never be reported as uncovered');
+});
+
 test('choosing forbidden tech is an error', async () => {
   const r = await brief();
   r.tech.forbidden = ['DynamoDB'];

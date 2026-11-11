@@ -1,5 +1,5 @@
 {
-  "description": "koud — re-injects phase state at session start so /clear is free",
+  "description": "koud \u2014 re-injects phase state at session start so /clear is free, and keeps secrets files out of the conversation",
   "hooks": {
     "SessionStart": [
       {
@@ -14,10 +14,16 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "PreToolUse": [
       {
+        "matcher": "Read|Edit|Write|NotebookEdit|Bash",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" deadline-pressure", "shell": "bash", "async": false }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" guard-secrets",
+            "shell": "bash",
+            "async": false
+          }
         ]
       }
     ],
@@ -25,14 +31,24 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" progress-stamp", "shell": "bash", "async": false }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" progress-stamp",
+            "shell": "bash",
+            "async": false
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" challenges-reminder", "shell": "bash", "async": false }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh\" challenges-reminder",
+            "shell": "bash",
+            "async": false
+          }
         ]
       }
     ]

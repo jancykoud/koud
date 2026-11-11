@@ -192,6 +192,41 @@ test('brief.mjs apply --dry-run writes nothing and leaves the phase untouched', 
   });
 });
 
+test('brief.mjs apply removes the draft it was applied from, and backs up the brief a re-run replaces', async () => {
+  await withTmpDir(async (dir) => {
+    await run('node', [path.join(scripts, 'init.mjs'), dir, '--apply']);
+    const draft = path.join(dir, '.koud', 'brief.draft.json');
+
+    await copyFile(fixture, draft);
+    const first = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft]);
+    assert.match(first.stdout, /Removed the applied draft \.koud\/brief\.draft\.json/);
+    await assert.rejects(() => readFile(draft, 'utf8'), /ENOENT/);
+    assert.doesNotMatch(first.stdout, /Backed up/, 'a first run has nothing to back up');
+
+    const changed = JSON.parse(await readFile(fixture, 'utf8'));
+    changed.identity.one_liner = 'A different one-liner.';
+    await writeFile(draft, JSON.stringify(changed), 'utf8');
+    const preview = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft, '--dry-run']);
+    assert.match(preview.stdout, /! \.koud\/brief\.json/, 'the previous brief really is about to be replaced');
+    await readFile(draft, 'utf8'); // a dry run leaves the draft where it is
+
+    const second = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', draft]);
+    assert.match(second.stdout, /Backed up before overwriting:/);
+    assert.match(second.stdout, /~ \.koud\/brief\.json/);
+    const applied = JSON.parse(await readFile(path.join(dir, '.koud', 'brief.json'), 'utf8'));
+    assert.equal(applied.identity.one_liner, 'A different one-liner.');
+  });
+});
+
+test('brief.mjs apply never deletes a payload supplied from outside the project', async () => {
+  await withTmpDir(async (dir) => {
+    await run('node', [path.join(scripts, 'init.mjs'), dir, '--apply']);
+    const { stdout } = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', fixture]);
+    assert.doesNotMatch(stdout, /Removed the applied draft/);
+    await readFile(fixture, 'utf8');
+  });
+});
+
 test('after :brief, next refuses to advance until the brief is approved', async () => {
   await withTmpDir(async (dir) => {
     await run('node', [path.join(scripts, 'init.mjs'), dir, '--apply']);
@@ -646,38 +681,42 @@ test('spec.mjs apply prints validateRequirements warnings — :spec has no valid
   });
 });
 
-// --- Stage 2 review: the dry-run overwrite warning the command files promise ---------------
-//
-// Every apply module's dry-run branch returned `backedUp: []` unconditionally, so no CLI had
-// ever printed anything about overwriting during a preview — yet all four command files tell
-// the agent "if it reports it would overwrite something, tell the user first". The consent
-// gate was notional. Each of these drives both branches: the heading appears when a real
-// artifact is on disk, and does not when none is.
+// A payload written in place (`.koud/stack.json`, then `apply`) already holds the new content
+// when the preview runs. Listing it under "Would overwrite" warns about a file the same run
+// just created -- seen on the first real :brief. The preview must stay silent about that one
+// file, still name every rendered artifact, and still name the payload when it is supplied
+// from another path, because then the file on disk really is an older version.
 
-test('stack.mjs apply --dry-run names what it would overwrite, and stays silent when nothing would be', async () => {
+test('stack.mjs apply --dry-run stays silent about an in-place payload and names real artifacts', async () => {
   await withTmpDir(async (dir) => {
     await seedForStack(dir);
-    const present = await run('node', [path.join(scripts, 'stack.mjs'), 'apply', dir, '--dry-run']);
-    assert.match(present.stdout, /Would overwrite:/);
-    assert.match(present.stdout, /! \.koud\/stack\.json/);
+    const first = await run('node', [path.join(scripts, 'stack.mjs'), 'apply', dir, '--dry-run']);
+    assert.doesNotMatch(first.stdout, /Would overwrite:/, 'nothing but the in-place payload exists yet');
 
-    // The payload can come from anywhere; what matters is that no artifact is on disk.
-    await rm(path.join(dir, '.koud', 'stack.json'));
-    const absent = await run('node',
+    await run('node', [path.join(scripts, 'stack.mjs'), 'apply', dir]);
+    const rerun = await run('node', [path.join(scripts, 'stack.mjs'), 'apply', dir, '--dry-run']);
+    assert.match(rerun.stdout, /! \.koud\/stack\.md/);
+    assert.doesNotMatch(rerun.stdout, /! \.koud\/stack\.json/);
+
+    const external = await run('node',
       [path.join(scripts, 'stack.mjs'), 'apply', dir, '--stack', stackFixture, '--dry-run']);
-    assert.doesNotMatch(absent.stdout, /Would overwrite:/);
+    assert.match(external.stdout, /! \.koud\/stack\.json/, 'a payload from elsewhere replaces the one on disk');
   });
 });
 
-test('architect.mjs apply --dry-run names what it would overwrite, and stays silent when nothing would be', async () => {
+test('architect.mjs apply --dry-run stays silent about an in-place payload and names real artifacts', async () => {
   await withTmpDir(async (dir) => {
     await seedForArchitect(dir);
-    const present = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
-    assert.match(present.stdout, /Would overwrite:/);
-    assert.match(present.stdout, /! \.koud\/architecture\.json/);
+    // :init itself lays down AGENTS.md and CLAUDE.md, and both are :architect artifacts.
+    const first = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
+    assert.match(first.stdout, /Would overwrite:/);
+    assert.match(first.stdout, /! AGENTS\.md/);
+    assert.doesNotMatch(first.stdout, /! \.koud\/architecture\.json/);
 
-    // :init itself lays down AGENTS.md and CLAUDE.md, and both are :architect artifacts, so
-    // they have to go too before the "nothing would be overwritten" case is reachable.
+    const external = await run('node',
+      [path.join(scripts, 'architect.mjs'), 'apply', dir, '--architecture', architectureFixture, '--dry-run']);
+    assert.match(external.stdout, /! \.koud\/architecture\.json/);
+
     await rm(path.join(dir, '.koud', 'architecture.json'));
     await rm(path.join(dir, 'AGENTS.md'), { force: true });
     await rm(path.join(dir, 'CLAUDE.md'), { force: true });
@@ -687,17 +726,32 @@ test('architect.mjs apply --dry-run names what it would overwrite, and stays sil
   });
 });
 
-test('requirements.mjs apply --dry-run names what it would overwrite, and stays silent when nothing would be', async () => {
+test('requirements.mjs apply --dry-run stays silent about an in-place payload and names real artifacts', async () => {
   await withTmpDir(async (dir) => {
     await seedForRequirements(dir);
-    const present = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--dry-run']);
-    assert.match(present.stdout, /Would overwrite:/);
-    assert.match(present.stdout, /! \.koud\/requirements\.json/);
+    const first = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--dry-run']);
+    assert.doesNotMatch(first.stdout, /Would overwrite:/);
 
-    await rm(path.join(dir, '.koud', 'requirements.json'));
-    const absent = await run('node',
+    await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir]);
+    const rerun = await run('node', [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--dry-run']);
+    assert.match(rerun.stdout, /! \.koud\/requirements\.md/);
+    assert.doesNotMatch(rerun.stdout, /! \.koud\/requirements\.json/);
+
+    const external = await run('node',
       [path.join(scripts, 'requirements.mjs'), 'apply', dir, '--requirements', requirementsFixture, '--dry-run']);
-    assert.doesNotMatch(absent.stdout, /Would overwrite:/);
+    assert.match(external.stdout, /! \.koud\/requirements\.json/);
+  });
+});
+
+test('brief.mjs apply --dry-run stays silent about an in-place payload and names it when it comes from a draft', async () => {
+  await withTmpDir(async (dir) => {
+    await run('node', [path.join(scripts, 'init.mjs'), dir, '--apply']);
+    await copyFile(fixture, path.join(dir, '.koud', 'brief.json'));
+    const first = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--dry-run']);
+    assert.doesNotMatch(first.stdout, /Would overwrite:/);
+
+    const external = await run('node', [path.join(scripts, 'brief.mjs'), 'apply', dir, '--brief', fixture, '--dry-run']);
+    assert.match(external.stdout, /! \.koud\/brief\.json/);
   });
 });
 

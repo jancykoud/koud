@@ -37,7 +37,7 @@ inventing a claim here.
 
 | Shape | When |
 |---|---|
-| `next-monolith` | Next.js full-stack, server actions, no separate API surface |
+| `single-app` | one deployable: a full-stack app, an API or a site, with no second unit that ships on its own |
 | `multi-service` | separate `web/`, `api/`, `agents/`, each independently deployable |
 
 `monorepo-structure` has the criteria and what each shape costs.

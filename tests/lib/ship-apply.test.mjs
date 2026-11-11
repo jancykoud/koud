@@ -10,9 +10,9 @@ async function fixture(name) {
   return JSON.parse(await readFile(new URL(`../fixtures/${name}`, import.meta.url), 'utf8'));
 }
 
-test('selectTargets picks vercel for a next-monolith frontend slot by default', async () => {
+test('selectTargets picks vercel for a single-app frontend slot by default', async () => {
   const stack = await fixture('h0-stack.json');
-  const targets = selectTargets({ ...stack, repo_shape: 'next-monolith' });
+  const targets = selectTargets({ ...stack, repo_shape: 'single-app' });
   const frontend = targets.find((t) => t.kind === 'frontend');
   assert.equal(frontend.target, 'vercel');
 });

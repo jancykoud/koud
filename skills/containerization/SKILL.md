@@ -5,7 +5,7 @@ description: Per-service, multi-stage Dockerfiles sized for a two-day project, n
 
 # Containerization for a first release
 
-**One Dockerfile per service.** `next-monolith` gets exactly one at the repo root;
+**One Dockerfile per service.** `single-app` gets exactly one at the repo root;
 `multi-service` gets one per deployable directory (`web/Dockerfile`, `api/Dockerfile`,
 `agents/Dockerfile`, ...) — the repo shape `:stack` already chose determines the count.
 

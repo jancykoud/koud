@@ -4,10 +4,11 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { withTmpDir } from '../helpers/tmp.mjs';
 
 const run = promisify(execFile);
-const HOOK = new URL('../../hooks/progress-stamp.mjs', import.meta.url).pathname;
+const HOOK = fileURLToPath(new URL('../../hooks/progress-stamp.mjs', import.meta.url));
 
 async function seed(root, state) {
   await mkdir(path.join(root, '.koud'), { recursive: true });

@@ -1,15 +1,23 @@
 ---
 name: monorepo-structure
-description: Use at :stack — choosing between a next-monolith and a multi-service repository shape, with both shapes as measured in winning repositories.
+description: Use at :stack — choosing between a single-app and a multi-service repository shape, with both shapes as measured in winning repositories.
 ---
 
 # Repository shape
 
-`:stack` picks one of two shapes, once, before anything else gets written. Both shapes below
-are measured directly from a winning repository's working tree, not sketched from what a
-Next.js monorepo "usually" looks like.
+`:stack` picks one of two shapes, once, before anything else gets written. The shape is
+about how many things deploy on their own, not about a framework:
 
-## next-monolith
+- **`single-app`** — one deployable. A full-stack app, an API or a site; any language, any
+  framework.
+- **`multi-service`** — several units in one repository, each deployable on its own. A
+  workspace monorepo with `apps/api`, `apps/web` and `apps/mobile` is this shape.
+
+The two worked examples below are measured from real repositories that happen to use
+Next.js and Python. Read them for the reasoning — what a second deployable costs — and
+apply it to the stack the brief actually names.
+
+## single-app
 
 Kintwadi (the reference project) is one Next.js app. The marketing site, auth, and the entire
 authenticated product live inside a single `src/`, and the thing that would normally need its
@@ -129,13 +137,14 @@ processes on a scaling curve that has nothing to do with its Next.js frontend's 
 traffic — folding them into one deployable would mean scaling the frontend just to scale the
 agents.
 
-Pick **next-monolith** when server actions cover the writes. A second service is never free:
+Pick **single-app** when one deployable can do the whole job (in the example below, server
+actions cover the writes). A second service is never free:
 it costs a network hop the monolith doesn't pay, a second deploy target that has to stay
 green, and a second set of secrets to provision and rotate. Kintwadi's DAL absorbs every write
 the product needs without paying any of that, which is why it never grew a second service at
 all.
 
-**Under a deadline, next-monolith is the cheaper default.** One repository, one CI pipeline,
+**Under a deadline, single-app is the cheaper default.** One repository, one CI pipeline,
 one place to look when something breaks, and the whole product ships from a single `git push`.
 Multi-service earns its cost only when the alternative — one service doing two jobs at two
 incompatible scales — is the more expensive failure to ship with. Reach for it because a

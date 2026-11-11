@@ -13,7 +13,7 @@ import path from 'node:path';
 import { KOUD_DIR, BRIEF_FILE, statePath, timestamp } from './paths.mjs';
 import { readState, writeState, migrateStateFile, readMigratedState } from './state.mjs';
 import { openBackupSet, existingPaths } from './backup.mjs';
-import { validateBrief } from './brief-schema.mjs';
+import { validateBrief, isCoreTech, isOutcomeCriterion } from './brief-schema.mjs';
 import { renderTable } from './render.mjs';
 
 const rel = (name) => `${KOUD_DIR}/${name}`;
@@ -76,29 +76,53 @@ export function renderBrief(brief) {
     ? 'this project already has code; the stack below is what the code uses'
     : 'this project starts from an idea'}.`);
   out.push('');
+  if (brief.scope) {
+    out.push(`**Scope:** ${String(brief.scope).replace(/\n+/g, ' ')}`);
+    out.push('');
+  }
 
   out.push('## Success criteria');
   out.push('');
   out.push('In priority order. Every one must be claimed by at least one feature in `:requirements`.');
   out.push('');
   out.push(renderTable(
-    ['Rank', 'Id', 'Criterion', 'How we know it is met'],
-    byRank(brief.criteria.items).map((c) => [c.rank, `\`${c.id}\``, c.name, c.statement]),
+    ['Rank', 'Id', 'Criterion', 'How we know it is met', 'Checked'],
+    byRank(brief.criteria.items).map((c) => [
+      c.rank, `\`${c.id}\``, c.name, c.statement,
+      isOutcomeCriterion(c) ? 'after release' : 'before release',
+    ]),
   ));
+  if (brief.criteria.items.some(isOutcomeCriterion)) {
+    out.push('');
+    out.push('A criterion checked after release is a result in the world, not a property of the code:');
+    out.push('the build can make it possible, and only real use can confirm it.');
+  }
   out.push('');
 
   out.push('## Technology');
   out.push('');
   const required = brief.tech.required ?? [];
-  if (required.length > 0) {
+  const core = required.filter(isCoreTech);
+  const tooling = required.filter((t) => !isCoreTech(t));
+  if (core.length > 0) {
     out.push('**Required** — `:stack` must cover each of these, and `:check` verifies them in the code.');
     out.push('');
     out.push(renderTable(
       ['Technology', 'Why it is imposed'],
-      required.map((t) => [techLabel(t), t.reason]),
+      core.map((t) => [techLabel(t), t.reason]),
     ));
   } else {
     out.push('**Required:** nothing is imposed. `:stack` chooses freely.');
+  }
+  if (tooling.length > 0) {
+    out.push('');
+    out.push('**Tooling in place** — kept as it is, but replaceable without changing what the product does.');
+    out.push('`:stack` does not need a slot for these.');
+    out.push('');
+    out.push(renderTable(
+      ['Tool', 'Why it is there'],
+      tooling.map((t) => [techLabel(t), t.reason]),
+    ));
   }
   const forbidden = brief.tech.forbidden ?? [];
   if (forbidden.length > 0) {
@@ -165,8 +189,11 @@ export function buildBriefDigest(brief, { now = new Date() } = {}) {
     name: brief.identity.name,
     track: brief.track,
     deadline: hard?.at ?? null,
+    scope: brief.scope ?? null,
     tech: {
-      required: (brief.tech?.required ?? []).map(techLabel),
+      // Core only: this list is what the hook calls non-negotiable at every session start.
+      required: (brief.tech?.required ?? []).filter(isCoreTech).map(techLabel),
+      tooling: (brief.tech?.required ?? []).filter((t) => !isCoreTech(t)).map(techLabel),
       preferred: (brief.tech?.preferred ?? []).map(techLabel),
       forbidden: (brief.tech?.forbidden ?? []).map(techLabel),
     },

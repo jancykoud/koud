@@ -30,6 +30,7 @@ code must really use.
 {
   "schema_version": 1,
   "track": "new",                               // new | existing
+  "scope": "The whole product at its current stage.",   // optional
   "identity": {
     "name": "Care Circle",
     "one_liner": "One shared record for a family coordinating the care of a relative."
@@ -45,12 +46,14 @@ code must really use.
   "criteria": {
     "items": [
       { "rank": 1, "id": "technical-implementation", "name": "Technical implementation",
+        "kind": "system",                       // system (default) | outcome
         "statement": "A member of one care circle cannot read another circle's record through any route." }
     ]
   },
 
   "tech": {
-    "required":  [{ "name": "AWS Database", "one_of": ["Aurora PostgreSQL", "DynamoDB"],
+    "required":  [{ "name": "AWS Database", "role": "core",   // core (default) | tooling
+                    "one_of": ["Aurora PostgreSQL", "DynamoDB"],
                     "reason": "The organisation's data must stay in one AWS account." }],
     "forbidden": [],
     "preferred": [{ "name": "v0", "reason": "Fastest route to a first interface." }]
@@ -67,6 +70,7 @@ code must really use.
 | Rule | Severity | Why |
 |---|---|---|
 | `track` is `new` or `existing` | **error** | The two tracks treat technology differently: chosen on one, read from the code on the other |
+| `scope`, when present, is a non-empty string | **error** | It says how much of the product the brief speaks for |
 | `identity.name` and `identity.one_liner` are non-empty | **error** | Every later phase quotes them |
 | `identity.one_liner` is at most 160 characters | warning | Past that it is no longer one line on a status board |
 | `problem` is non-empty | **error** | A project with no stated problem cannot be scoped |
@@ -76,9 +80,11 @@ code must really use.
 | `non_goals` is non-empty | warning | |
 | `criteria.items` has at least one entry | **error** | `:requirements` builds toward these |
 | Each criterion has a slug `id`, a `name` and a `statement` | **error** | The statement is what a reviewer checks the product against |
+| `kind`, when present, is `system` or `outcome` | **error** | A result in the world cannot be confirmed by a test |
 | Criterion ids are unique; ranks are contiguous from 1 | **error** | The id is a join key; the rank decides conflicts |
 | `tech.required` is present (empty is allowed) | **error** | Empty is an answer; missing means nobody asked |
 | Each `tech.required` entry has a `name` and a `reason` | **error** | A constraint with no reason outlives the fact that justified it |
+| `role`, when present, is `core` or `tooling` | **error** | Only core technology must be covered by a stack slot |
 | `one_of`, when present, is a non-empty array of strings | **error** | `:stack` must pick one of them |
 | Each date has a `label`, an `at` with an explicit UTC offset, and a `kind` of `hard` or `milestone` | **error** | A floating time is a different instant in every zone |
 | At most one date is `hard` | **error** | One delivery deadline |
@@ -96,7 +102,7 @@ brief-first precedence made mechanical.
 ```jsonc
 {
   "schema_version": 1,
-  "repo_shape": "next-monolith",              // | "multi-service"
+  "repo_shape": "single-app",              // | "multi-service"
   "shape_rationale": "Server actions cover every write; no second deployable earns its keep.",
 
   "slots": [
@@ -133,7 +139,7 @@ brief-first precedence made mechanical.
 
 | Rule | Severity | Why |
 |---|---|---|
-| Every `brief.tech.required[]` id is covered by a slot with `source: "required"` | **error** | A technology the brief requires and no slot claims is not the project that was asked for |
+| Every core `brief.tech.required[]` id (any entry whose `role` is not `tooling`) is covered by a slot with `source: "required"` | **error** | A technology the brief requires and no slot claims is not the project that was asked for |
 | No slot `choice` matches anything in `brief.tech.forbidden[]` | **error** | Same reason |
 | At least one slot has `thesis_support: "carries"` | **error** | If nothing carries the thesis, the brief.s one-liner has no architecture behind it |
 | `repo_shape` is one of the two known shapes | error | `monorepo-structure` only has playbooks for two |

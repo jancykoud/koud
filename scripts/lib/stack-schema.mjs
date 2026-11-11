@@ -167,6 +167,9 @@ function crossCheckBrief(slots, brief, errors, warnings) {
     }
   }
   for (const req of required) {
+    // Tooling the brief records (a test runner, a linter) is kept as it is but does not
+    // define the product, so it needs no slot. An entry with no role is core.
+    if (req?.role === 'tooling') continue;
     const { id, label } = identifyTech(req);
     if (!isNonEmptyString(id)) continue;
     const slot = coveringSlot.get(id);

@@ -14,7 +14,7 @@ table for slots the rules leave open.
 
 | Target | Best for | Time to first URL | Notes |
 |---|---|---|---|
-| **Vercel** | Next.js frontends, `next-monolith` repos | Minutes | The default for any Next.js slot the brief does not constrain |
+| **Vercel** | Next.js frontends, `single-app` repos | Minutes | The default for any Next.js slot the brief does not constrain |
 | **Cloud Run** | Containerized backends in a `multi-service` repo, GCP-adjacent stacks | ~10-20 min including image build | Scales to zero, good fit for a small project.s traffic profile |
 | **Railway** | Fast multi-service deploys without writing Terraform | Minutes | Good fallback when time is tighter than the Cloud Run/Terraform path allows |
 | **Render** | Similar to Railway; a reasonable alternative when the brief forbids Railway | Minutes | |
@@ -24,6 +24,6 @@ table for slots the rules leave open.
 ## Evidence
 
 Deploy target follows the stack the brief requires and the repo shape `:stack` already
-chose — a `next-monolith` and a `multi-service` repo don't ship to the same place, and a
+chose — a `single-app` and a `multi-service` repo don't ship to the same place, and a
 cloud the brief requires overrides either default. This table is a selection aid, not a
 single recommendation, for that reason.

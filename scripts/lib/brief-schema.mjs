@@ -3,13 +3,29 @@ import { TRACKS } from './schema.mjs';
 
 export const BRIEF_SCHEMA_VERSION = 1;
 export const DATE_KINDS = ['hard', 'milestone'];
+
+/**
+ * `core` technology is what the product is made of: replacing it means rewriting the
+ * product (framework, database, runtime, hosting). `tooling` can be swapped without
+ * changing what the product does (test runner, linter, CSS utility, data-fetching
+ * library). Only core technology has to be covered by a stack slot.
+ */
+export const TECH_ROLES = ['core', 'tooling'];
+
+/**
+ * A `system` criterion is a property of the product that a test or a review can confirm
+ * before release. An `outcome` criterion is a result in the world (real users, real
+ * payments) that can only be measured after release. Both must be claimed by a feature;
+ * only the first can be verified by the build.
+ */
+export const CRITERION_KINDS = ['system', 'outcome'];
 export { TRACKS };
 
 /** A one-liner longer than this stops being one line in a status board or a README. */
 export const ONE_LINER_MAX = 160;
 
 const KNOWN_TOP_LEVEL = new Set([
-  'schema_version', 'track', 'identity', 'problem', 'audience', 'goals', 'non_goals',
+  'schema_version', 'track', 'scope', 'identity', 'problem', 'audience', 'goals', 'non_goals',
   'criteria', 'tech', 'constraints', 'dates', 'unresolved',
 ]);
 
@@ -43,6 +59,13 @@ export function validateBrief(brief) {
 
   if (!TRACKS.includes(brief.track)) {
     errors.push(`track must be one of ${TRACKS.join(', ')}, got "${brief.track}"`);
+  }
+
+  // Optional. When present it says what the brief covers: the whole product at its current
+  // stage, or one piece of work on it. Without it, a brief on an existing repository is
+  // ambiguous about how much of the code it is describing.
+  if (brief.scope !== undefined && !isNonEmptyString(brief.scope)) {
+    errors.push('scope must be a non-empty string when present');
   }
 
   validateIdentity(brief.identity, errors, warnings);
@@ -144,6 +167,9 @@ function validateCriteria(criteria, errors) {
     if (!isNonEmptyString(item?.statement)) {
       errors.push(`${where}.statement must be a non-empty string — say how anyone will know it is met`);
     }
+    if (item?.kind !== undefined && !CRITERION_KINDS.includes(item.kind)) {
+      errors.push(`${where}.kind must be one of ${CRITERION_KINDS.join(', ')}, got "${item.kind}"`);
+    }
   }
 
   // rank is the priority order: when two criteria pull in different directions, the lower
@@ -167,6 +193,9 @@ function validateTechList(list, name, errors) {
       continue;
     }
     if (!isNonEmptyString(entry.name)) errors.push(`${where}.name must be a non-empty string`);
+    if (entry.role !== undefined && !TECH_ROLES.includes(entry.role)) {
+      errors.push(`${where}.role must be one of ${TECH_ROLES.join(', ')}, got "${entry.role}"`);
+    }
     if (entry.one_of !== undefined) {
       const ok = Array.isArray(entry.one_of) && entry.one_of.length > 0 && entry.one_of.every(isNonEmptyString);
       if (!ok) errors.push(`${where}.one_of must be a non-empty array of strings when present`);
@@ -233,3 +262,9 @@ function validateDates(dates, errors) {
   }
   if (hard > 1) errors.push(`dates may contain at most one "hard" date (the delivery deadline), found ${hard}`);
 }
+
+/** A required entry with no `role` is core: the stricter reading is the safe default. */
+export const isCoreTech = (entry) => entry?.role !== 'tooling';
+
+/** A criterion with no `kind` is a system criterion, for the same reason. */
+export const isOutcomeCriterion = (item) => item?.kind === 'outcome';

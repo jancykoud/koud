@@ -86,3 +86,16 @@ export async function existingPaths(root, relPaths) {
     access(path.join(root, rel)).then(() => rel).catch(() => null)));
   return checked.filter((rel) => rel !== null);
 }
+
+/**
+ * A payload the agent wrote in place (`.koud/stack.json`, then `stack.mjs apply`) already
+ * holds the new content when the preview runs, so listing it under "would overwrite" warns
+ * about a file the same run just created. Drop it from the preview in that one case; a
+ * payload supplied from another path is still reported, because then the file on disk
+ * really is an older version about to be replaced.
+ */
+export function withoutInPlacePayload(wouldOverwrite, root, sourcePath, payloadRel) {
+  if (!Array.isArray(wouldOverwrite)) return wouldOverwrite;
+  const inPlace = path.resolve(sourcePath) === path.resolve(root, payloadRel);
+  return inPlace ? wouldOverwrite.filter((rel) => rel !== payloadRel) : wouldOverwrite;
+}

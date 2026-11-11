@@ -17,7 +17,7 @@ test('the drift banner matches the canonical text two winners shipped', async ()
 });
 
 test('no bleeding-edge pin means no banner at all', () => {
-  const stack = { schema_version: 1, repo_shape: 'next-monolith', slots: [], bleeding_edge: [] };
+  const stack = { schema_version: 1, repo_shape: 'single-app', slots: [], bleeding_edge: [] };
   assert.equal(renderDriftBanner(stack), null,
     'a banner about a framework nobody pinned is noise');
 });

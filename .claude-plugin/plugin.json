@@ -1,6 +1,6 @@
 {
   "name": "koud",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A gated project workflow for Claude Code: describe a project once, then stack, architecture, requirements, specs, test-first build, deploy and review each read that one brief instead of asking again.",
   "author": {
     "name": "Jancy Koud Banga"

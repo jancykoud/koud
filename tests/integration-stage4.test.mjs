@@ -60,7 +60,7 @@ test('Docker Compose end-to-end -- selectTargets, applyShip, and a real curl-ver
     // h0-stack.json (scaffolded above) has two deployable slots -- "frontend" and "deploy"
     // (its "database" slot is the only one deployableSlots() excludes, per
     // deploy-schema.test.mjs's "only the database slot is excluded" case). Its
-    // shape_rationale is next-monolith: server actions cover every write, so one running
+    // shape_rationale is single-app: server actions cover every write, so one running
     // instance legitimately covers both slots -- both service entries point at the single
     // compose container's curl-verified URL, not two separate deploys.
     const service = (name, kind) => ({

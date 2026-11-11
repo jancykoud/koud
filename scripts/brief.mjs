@@ -1,12 +1,16 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { validateBrief } from './lib/brief-schema.mjs';
 import { applyBrief } from './lib/brief-apply.mjs';
-import { briefPath } from './lib/paths.mjs';
+import { briefPath, KOUD_DIR } from './lib/paths.mjs';
+import { withoutInPlacePayload } from './lib/backup.mjs';
 
 const [subcommand, target, ...rest] = process.argv.slice(2);
 const flags = new Set(rest.filter((a) => a.startsWith('--')));
+
+/** Where :brief writes the payload before it is applied, so a re-run can back up the old one. */
+const DRAFT_FILE = 'brief.draft.json';
 
 function usage() {
   console.error('usage: brief.mjs validate <path-to-brief.json> [--json]');
@@ -52,15 +56,23 @@ if (subcommand === 'validate') {
     for (const a of artifacts) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
     // The consent gate: commands/brief.md tells the agent to name these to the user before
     // applying, which it can only do if the preview actually reports them.
-    if (wouldOverwrite?.length > 0) {
+    const overwritten = withoutInPlacePayload(wouldOverwrite, root, source, '.koud/brief.json');
+    if (overwritten?.length > 0) {
       console.log('\nWould overwrite:');
-      for (const w of wouldOverwrite) console.log(`  ! ${w}`);
+      for (const w of overwritten) console.log(`  ! ${w}`);
     }
     if (backedUp?.length > 0) {
       console.log('\nBacked up before overwriting:');
       for (const b of backedUp) console.log(`  ~ ${b}`);
     }
     if (!dryRun) {
+      // The draft has done its job once its content is in brief.json. Only ever remove
+      // the one file this workflow owns -- a payload supplied from anywhere else is the
+      // caller's, and stays where it is.
+      if (source === path.join(root, KOUD_DIR, DRAFT_FILE)) {
+        await rm(source, { force: true });
+        console.log(`\nRemoved the applied draft ${KOUD_DIR}/${DRAFT_FILE}.`);
+      }
       console.log('\nPhase "brief" is now awaiting_approval. Read the one-liner and the success criteria back, then ask.');
     }
   } catch (err) {

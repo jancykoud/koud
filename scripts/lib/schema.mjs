@@ -3,7 +3,7 @@ import { hasExplicitOffset } from './iso-datetime.mjs';
 
 export const CURRENT_SCHEMA_VERSION = 1;
 
-export const REPO_SHAPES = ['next-monolith', 'multi-service'];
+export const REPO_SHAPES = ['single-app', 'multi-service'];
 
 export const PHASE_STATUSES = [
   'not_started', 'in_progress', 'awaiting_approval', 'approved', 'skipped',

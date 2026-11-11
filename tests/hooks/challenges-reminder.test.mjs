@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile, utimes } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { withTmpDir } from '../helpers/tmp.mjs';
 
-const HOOK = new URL('../../hooks/challenges-reminder.mjs', import.meta.url).pathname;
-const TRANSCRIPT_WITH_FAILURES = new URL('../fixtures/challenges-transcript.jsonl', import.meta.url).pathname;
-const TRANSCRIPT_CLEAN = new URL('../fixtures/challenges-transcript-clean.jsonl', import.meta.url).pathname;
+const HOOK = fileURLToPath(new URL('../../hooks/challenges-reminder.mjs', import.meta.url));
+const TRANSCRIPT_WITH_FAILURES = fileURLToPath(new URL('../fixtures/challenges-transcript.jsonl', import.meta.url));
+const TRANSCRIPT_CLEAN = fileURLToPath(new URL('../fixtures/challenges-transcript-clean.jsonl', import.meta.url));
 // Matches the first line's "timestamp" field in both fixtures above.
 const FIXTURE_SESSION_START = Date.parse('2026-08-30T10:00:00.000Z');
 

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "repo_shape": "next-monolith",
+  "repo_shape": "single-app",
   "shape_rationale": "Server actions cover every write; a second deployable would add a network hop and a deploy target without adding a capability.",
   "slots": [
     {

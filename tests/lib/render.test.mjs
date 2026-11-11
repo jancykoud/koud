@@ -126,9 +126,9 @@ test('renderTable with no rows returns an empty string, not a headerless table',
 test('the board summarises the stack once :stack has run', () => {
   const state = baseState();
   state.project = { name: 'Kintwadi',
-    stack: { repo_shape: 'next-monolith', primary_database: 'Aurora PostgreSQL' } };
+    stack: { repo_shape: 'single-app', primary_database: 'Aurora PostgreSQL' } };
   const out = renderStatusBoard({ state, resolution: { outcome: 'start', phase: 'architect', drift: [] } });
-  assert.match(out, /next-monolith/);
+  assert.match(out, /single-app/);
   assert.match(out, /Aurora PostgreSQL/);
 });
 

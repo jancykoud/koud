@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   validateBrief, BRIEF_SCHEMA_VERSION, DATE_KINDS, TRACKS, ONE_LINER_MAX,
+  TECH_ROLES, CRITERION_KINDS, isCoreTech, isOutcomeCriterion,
 } from '../../scripts/lib/brief-schema.mjs';
 
 const golden = async () => JSON.parse(
@@ -21,6 +22,8 @@ test('the vocabularies are exactly as specified', () => {
   assert.equal(BRIEF_SCHEMA_VERSION, 1);
   assert.deepEqual(TRACKS, ['new', 'existing']);
   assert.deepEqual(DATE_KINDS, ['hard', 'milestone']);
+  assert.deepEqual(TECH_ROLES, ['core', 'tooling']);
+  assert.deepEqual(CRITERION_KINDS, ['system', 'outcome']);
 });
 
 test('a non-object payload is rejected without throwing', () => {
@@ -175,4 +178,33 @@ test('constraints are optional and type-checked when present', async () => {
   assert.ok(has(errors, /constraints\.compliance must be an array/));
   delete brief.constraints;
   assert.equal(validateBrief(brief).valid, true);
+});
+
+test('scope is optional, and a non-empty string when present', async () => {
+  const brief = await golden();
+  brief.scope = 'The whole product at its current stage.';
+  assert.equal(validateBrief(brief).valid, true);
+  brief.scope = '   ';
+  assert.ok(has(errorsOf(brief), /^scope must be a non-empty string when present$/));
+});
+
+test('a technology role is core or tooling, and defaults to core', async () => {
+  const brief = await golden();
+  brief.tech.required[0].role = 'tooling';
+  assert.equal(validateBrief(brief).valid, true);
+  brief.tech.required[0].role = 'nice-to-have';
+  assert.ok(has(errorsOf(brief), /tech\.required\[0\]\.role must be one of core, tooling/));
+  assert.equal(isCoreTech({ name: 'PostgreSQL' }), true, 'no role means core: the stricter reading');
+  assert.equal(isCoreTech({ name: 'PostgreSQL', role: 'core' }), true);
+  assert.equal(isCoreTech({ name: 'Jest', role: 'tooling' }), false);
+});
+
+test('a criterion kind is system or outcome, and defaults to system', async () => {
+  const brief = await golden();
+  brief.criteria.items[0].kind = 'outcome';
+  assert.equal(validateBrief(brief).valid, true);
+  brief.criteria.items[0].kind = 'business';
+  assert.ok(has(errorsOf(brief), /criteria\.items\[0\].*kind must be one of system, outcome/));
+  assert.equal(isOutcomeCriterion({ id: 'x' }), false);
+  assert.equal(isOutcomeCriterion({ id: 'x', kind: 'outcome' }), true);
 });

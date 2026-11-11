@@ -210,3 +210,47 @@ test('techLabel prints the allowed options beside the name', () => {
   assert.equal(techLabel({ name: 'Vercel' }), 'Vercel');
   assert.equal(techLabel('Redis'), 'Redis');
 });
+
+test('tooling is rendered apart from core technology and kept out of the non-negotiable digest', async () => {
+  const brief = await golden();
+  brief.tech.required.push(
+    { name: 'Jest', role: 'tooling', reason: 'already in the codebase: jest.config.ts' },
+    { name: 'Tailwind', role: 'tooling', reason: 'already in the codebase: tailwind.config.ts' },
+  );
+  const md = renderBrief(brief);
+  const required = md.slice(md.indexOf('**Required**'), md.indexOf('**Tooling in place**'));
+  assert.match(required, /AWS Database/);
+  assert.doesNotMatch(required, /Jest/);
+  assert.match(md.slice(md.indexOf('**Tooling in place**')), /\| Jest \| already in the codebase: jest\.config\.ts \|/);
+
+  const digest = buildBriefDigest(brief);
+  assert.deepEqual(digest.tech.tooling, ['Jest', 'Tailwind']);
+  assert.ok(!digest.tech.required.includes('Jest'));
+});
+
+test('a brief whose every required entry is tooling says nothing is imposed', async () => {
+  const brief = await golden();
+  brief.tech.required = [{ name: 'ESLint', role: 'tooling', reason: 'already in the codebase' }];
+  const md = renderBrief(brief);
+  assert.match(md, /\*\*Required:\*\* nothing is imposed/);
+  assert.match(md, /\*\*Tooling in place\*\*/);
+});
+
+test('an outcome criterion is marked as checked after release, with the explanation', async () => {
+  const brief = await golden();
+  assert.doesNotMatch(renderBrief(brief), /after release/);
+  brief.criteria.items[2].kind = 'outcome';
+  const md = renderBrief(brief);
+  assert.match(md, /\| 3 \| `impact` \|.*\| after release \|/);
+  assert.match(md, /\| 1 \| `technical-implementation` \|.*\| before release \|/);
+  assert.match(md, /only real use can confirm it/);
+});
+
+test('scope is rendered under the track and carried into the digest', async () => {
+  const brief = await golden();
+  assert.doesNotMatch(renderBrief(brief), /\*\*Scope:\*\*/);
+  assert.equal(buildBriefDigest(brief).scope, null);
+  brief.scope = 'The whole product at its current stage.';
+  assert.match(renderBrief(brief), /\*\*Scope:\*\* The whole product at its current stage\./);
+  assert.equal(buildBriefDigest(brief).scope, 'The whole product at its current stage.');
+});

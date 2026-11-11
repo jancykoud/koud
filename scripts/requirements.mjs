@@ -4,6 +4,7 @@ import path from 'node:path';
 import { validateRequirements } from './lib/requirements-schema.mjs';
 import { applyRequirements } from './lib/requirements-apply.mjs';
 import { requirementsPath, briefPath, architecturePath } from './lib/paths.mjs';
+import { withoutInPlacePayload } from './lib/backup.mjs';
 
 const [subcommand, target, ...rest] = process.argv.slice(2);
 const flags = new Set(rest.filter((a) => a.startsWith('--')));
@@ -61,9 +62,10 @@ if (subcommand === 'validate') {
     for (const a of artifacts) console.log(`  ${dryRun ? '?' : '+'} ${a}`);
     // The consent gate: commands/requirements.md tells the agent to name these to the user
     // before applying, which it can only do if the preview actually reports them.
-    if (wouldOverwrite?.length > 0) {
+    const overwritten = withoutInPlacePayload(wouldOverwrite, root, source, '.koud/requirements.json');
+    if (overwritten?.length > 0) {
       console.log('\nWould overwrite:');
-      for (const w of wouldOverwrite) console.log(`  ! ${w}`);
+      for (const w of overwritten) console.log(`  ! ${w}`);
     }
     if (backedUp.length > 0) {
       console.log('\nBacked up before overwriting:');

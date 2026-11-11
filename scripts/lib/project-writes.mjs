@@ -16,6 +16,8 @@
  * `allow` is the library default so that callers which already hold the user's consent
  * (tests, scaffolds) need not restate it; the CLIs never default to it.
  */
+import { readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { KOUD_DIR } from './paths.mjs';
 
 export const ALLOW_FLAG = '--allow-project-writes';
@@ -56,20 +58,75 @@ export function projectPaths(artifacts) {
 }
 
 /**
- * The text a CLI prints when it refuses to write outside `.koud/` without a decision.
- * `existing` is the subset of `paths` already on disk.
+ * Finds, for each path about to be written, a file already in the project whose name
+ * differs only by letter case — `docs/ARCHITECTURE.md` for `docs/architecture.md`.
+ *
+ * On a case-insensitive disk (the macOS and Windows defaults) the two names are the same
+ * file: writing one replaces the other, and Git keeps showing the old name. On a
+ * case-sensitive disk they are two files a reader will confuse. Either way the user has
+ * to be told by name, because "exists, would be changed" hides that the file being
+ * replaced is a document of theirs under another spelling.
+ *
+ * Returns a Map from the path to be written to the path that is actually on disk. A path
+ * that exists under exactly the spelling given is not in the map.
  */
-export function renderConsentRequest(command, paths, existing = []) {
+export async function findCaseVariants(root, paths) {
+  const variants = new Map();
+  const listings = new Map();
+  const list = async (dir) => {
+    if (!listings.has(dir)) {
+      listings.set(dir, await readdir(path.join(root, dir)).catch(() => null));
+    }
+    return listings.get(dir);
+  };
+  for (const rel of paths ?? []) {
+    const segments = String(rel).replace(/\\/g, '/').split('/').filter((s) => s !== '' && s !== '.');
+    const actual = [];
+    let differs = false;
+    let found = true;
+    for (const segment of segments) {
+      const entries = await list(actual.join('/') || '.');
+      if (entries === null) { found = false; break; }
+      if (entries.includes(segment)) { actual.push(segment); continue; }
+      const variant = entries.find((e) => e.toLowerCase() === segment.toLowerCase());
+      if (variant === undefined) { found = false; break; }
+      actual.push(variant);
+      differs = true;
+    }
+    if (found && differs) variants.set(rel, actual.join('/'));
+  }
+  return variants;
+}
+
+/**
+ * The text a CLI prints when it refuses to write outside `.koud/` without a decision.
+ * `existing` is the subset of `paths` already on disk; `variants` is what
+ * findCaseVariants() returned.
+ */
+export function renderConsentRequest(command, paths, existing = [], variants = new Map()) {
   const taken = new Set(existing);
   const out = [];
   out.push(`${command} would write ${paths.length} file(s) outside ${KOUD_DIR}/ — nothing was written.`);
   out.push('');
-  for (const p of paths) out.push(`  ${taken.has(p) ? '! (exists, would be changed)' : '+ (new)'} ${p}`);
+  for (const p of paths) out.push(`  ${describeProjectWrite(p, taken, variants)}`);
   out.push('');
+  if (paths.some((p) => variants.has(p))) {
+    out.push('At least one of these would land on a file the project already has under another');
+    out.push(`spelling. Recommend ${KOUD_ONLY_FLAG} unless the user wants that file replaced.`);
+    out.push('');
+  }
   out.push('Show this list to the user and ask. Then re-run with exactly one of:');
   out.push(`  ${ALLOW_FLAG}   they agreed: write the files where listed`);
   out.push(`  ${KOUD_ONLY_FLAG}              they declined: write them under ${OUT_DIR}/ instead`);
   return out.join('\n');
+}
+
+/** One line of a write listing: new, existing, or colliding with a differently-cased name. */
+export function describeProjectWrite(rel, taken, variants = new Map()) {
+  if (variants.has(rel)) {
+    return `!! (would replace ${variants.get(rel)} — the same name in another case) ${rel}`;
+  }
+  return `${taken.has(rel) ? '! (exists, would be changed)' : '+ (new)'} ${rel}`;
 }
 
 /**

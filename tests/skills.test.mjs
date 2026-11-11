@@ -268,7 +268,7 @@ test('project-brief prefers an open question to a guess', async () => {
 
 test('test-driven-build states the five steps in order', async () => {
   const content = await readSkill('test-driven-build');
-  const order = ['**Test.**', '**Confirm it fails.**', '**Implement.**', '**Suite.**', '**Commit.**']
+  const order = ['**Test.**', '**Confirm it fails.**', '**Implement.**', '**Suite.**', '**Tick, then commit.**']
     .map((step) => content.indexOf(step));
   assert.ok(order.every((i) => i !== -1), 'all five steps must be named');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'the steps must appear in order');
@@ -291,6 +291,7 @@ test('test-driven-build treats a failing prove task as a finding, not a fix', as
   assert.match(md, /That is a finding,\s+not a task/);
   assert.match(md, /Say what you would start and why/);
   assert.match(md, /never an uncommitted change that was already in the worktree/);
+  assert.match(md, /The\s+box and the code it describes travel together/);
 });
 
 test('project-brief treats a re-run as a change to an agreed document', async () => {

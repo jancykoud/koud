@@ -435,7 +435,7 @@ test('the build command tells prove from build, announces services and commits o
   assert.match(md, /\*\*Prove\*\* — behaviour the project already has/);
   assert.match(md, /Report it to the user with the failing output before changing any code/);
   assert.match(md, /Say before you start anything that outlives the command/);
-  assert.match(md, /Do not commit what is not this task/);
+  assert.match(md, /\*\*Commit only the task\.\*\*/);
 });
 
 test('the init command asks before creating a file at the project root, not only before changing one', async () => {
@@ -465,4 +465,71 @@ test('the ship command gets a plan and stops before anything is written or deplo
   const agent = await readFile(new URL('../agents/deploy-engineer.md', import.meta.url), 'utf8');
   assert.match(agent, /\*\*Plan mode\*\* — the first time\. Write nothing, deploy nothing, start nothing/);
   assert.match(agent, /Production is never implied/);
+});
+
+// --- 0.4.0: the build that does not need a person at every task ---------------------------
+
+test('the build command states its standing rules before any step', async () => {
+  const md = await readCommand('build.md');
+  const rules = md.indexOf('## Standing rules');
+  const step1 = md.indexOf('## Step 1');
+  assert.ok(rules !== -1 && rules < step1);
+  const section = md.slice(rules, step1);
+  for (const rule of [
+    /\*\*Nothing leaves the machine\.\*\* No push, no deploy, no migration applied to a remote\s+database/,
+    /\*\*Never on the default branch\.\*\*/,
+    /git branch --show-current/,
+    /\*\*Secrets stay unread\.\*\*/,
+    /\*\*Only test data\.\*\*/,
+    /\*\*A call that costs money or reaches a third party is announced\.\*\*/,
+  ]) assert.match(section, rule);
+});
+
+test('the build command agrees on a first end-to-end slice before the first task', async () => {
+  const md = await readCommand('build.md');
+  const slice = md.indexOf('## Step 2 — On the first run, agree on the first slice');
+  const work = md.indexOf('## Step 3 — Work the tasks');
+  assert.ok(slice !== -1 && slice < work);
+  assert.match(md, /smallest slice that works end to end/);
+  assert.match(md, /with a real trial before anything is built on it/);
+  assert.match(md, /Then stop and wait for a yes/);
+});
+
+test('continuous mode names every reason to stop and never loosens a standing rule', async () => {
+  const md = await readCommand('build.md');
+  assert.match(md, /argument-hint: "\[--feature <FR-id>\] \[--continuous\]"/);
+  const mode = md.slice(md.indexOf('### How often to stop'), md.indexOf('## Step 4'));
+  assert.match(mode, /\*\*Default\*\* — stop after each task/);
+  for (const stop of [
+    /a test fails for a reason you do not understand, or a \*\*prove\*\* task fails/,
+    /a real trial of something nobody has tried yet/,
+    /going on would break a standing rule or a rule the user gave/,
+    /need a decision the specs do not make/,
+    /the slice or the feature is finished/,
+  ]) assert.match(mode, stop);
+  assert.match(mode, /applied to the \*\*local\*\* database without asking/);
+  assert.match(mode, /Do not let "continuous" stretch to anything\s+in the standing rules/);
+  assert.match(mode, /how the user can\s+check the result with their own eyes/);
+});
+
+test('the build command ticks boxes in the commit of the task', async () => {
+  const md = await readCommand('build.md');
+  assert.match(md, /commit the ticked `tasks\.md` with the task/);
+});
+
+test('the requirements command keeps behaviour out of the non-functional list', async () => {
+  const md = await readCommand('requirements.md');
+  assert.match(md, /\*\*A non-functional requirement is a check, not a behaviour\.\*\*/);
+  assert.match(md, /or nothing will build it/);
+});
+
+test('the architect command recommends keeping files in .koud on a case collision or a partial scope', async () => {
+  const md = await readCommand('architect.md');
+  assert.match(md, /The preview marks a file `!!`/);
+  assert.match(md, /The brief's `scope` is one piece of work, not the whole product/);
+});
+
+test('the init command proposes excluding .koud from a repository-wide formatter', async () => {
+  const md = await readCommand('init.md');
+  assert.match(md, /propose adding `\.koud\/` to\s+its ignore file/);
 });

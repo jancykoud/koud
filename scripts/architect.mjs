@@ -6,7 +6,8 @@ import { applyArchitecture } from './lib/architect-apply.mjs';
 import { architecturePath, stackPath } from './lib/paths.mjs';
 import { withoutInPlacePayload } from './lib/backup.mjs';
 import {
-  writeModeFromFlags, projectPaths, renderConsentRequest, CONSENT_EXIT_CODE, ALLOW_FLAG, KOUD_ONLY_FLAG,
+  writeModeFromFlags, projectPaths, renderConsentRequest, findCaseVariants, describeProjectWrite,
+  CONSENT_EXIT_CODE, ALLOW_FLAG, KOUD_ONLY_FLAG,
 } from './lib/project-writes.mjs';
 
 const [subcommand, target, ...rest] = process.argv.slice(2);
@@ -64,7 +65,9 @@ if (subcommand === 'validate') {
       const preview = await applyArchitecture(root, arch, { stack, dryRun: true, projectWrites });
       const outside = projectPaths(preview.artifacts);
       if (outside.length > 0 && !dryRun) {
-        console.error(renderConsentRequest('architect.mjs apply', outside, preview.wouldOverwrite));
+        console.error(renderConsentRequest(
+          'architect.mjs apply', outside, preview.wouldOverwrite, await findCaseVariants(root, outside),
+        ));
         process.exit(CONSENT_EXIT_CODE);
       }
     }
@@ -74,7 +77,12 @@ if (subcommand === 'validate') {
     const outsideKoud = projectPaths(artifacts);
     if (dryRun && outsideKoud.length > 0) {
       console.log(`\nOutside .koud/ (${outsideKoud.length}) — the user decides before any apply:`);
-      for (const a of outsideKoud) console.log(`  > ${a}`);
+      const variants = await findCaseVariants(root, outsideKoud);
+      const taken = new Set(wouldOverwrite ?? []);
+      for (const a of outsideKoud) console.log(`  ${describeProjectWrite(a, taken, variants)}`);
+      if (variants.size > 0) {
+        console.log(`  A file above would replace one the project has under another spelling: recommend ${KOUD_ONLY_FLAG}.`);
+      }
       console.log(`  yes -> apply with ${ALLOW_FLAG}; no -> apply with ${KOUD_ONLY_FLAG} (files go under .koud/out/)`);
     }
     // The consent gate: commands/architect.md tells the agent to name these to the user

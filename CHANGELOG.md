@@ -3,6 +3,53 @@
 Releases are cut by tag. Each version gets one section here, and the release workflow
 publishes that section as the GitHub Release notes.
 
+## [0.4.0] - 2026-11-11
+
+Driven by a second real run: adding a new piece of work — an agent that drafts replies to
+customer messages — to an existing Next.js and Supabase application.
+
+### Added
+
+- **`/koud:build --continuous`.** Works task after task and stops only when a test fails
+  for a reason it does not understand, a *prove* task fails, it reaches the first real
+  trial of something untried, going on would break a rule, a decision is missing, or the
+  slice is finished. Without the flag it still stops after each task.
+- **A first slice.** On its first run `:build` proposes the smallest set of tasks that
+  works end to end, with whatever is untried placed early, and waits for a yes.
+- **Standing rules for `:build`**, stated before any step: nothing leaves the machine,
+  never on the default branch, secrets unread, only test data, any paid or third-party
+  call announced, only the task committed.
+- **Case-collision warning.** A file the project already has under another letter case
+  (`docs/ARCHITECTURE.md` for `docs/architecture.md`) is marked `!!` in the preview and
+  in the refusal, by its real name. On a case-insensitive disk the 0.3.0 preview said
+  only "exists, would be changed".
+
+### Fixed
+
+- **`tasks.md` pointed at `features/` after `--koud-only`.** It now names
+  `.koud/out/features/` when that is where the Gherkin is.
+- **A behaviour filed as a non-functional requirement was never built.** `:spec` now
+  lists the non-functional requirements that get no task and says why; `:requirements` is
+  told a limit, a fallback or a refusal belongs in a feature.
+- **Boxes in `tasks.md` were left unticked** by an assistant trying to commit only the
+  task's files. The ticked `tasks.md` is now explicitly part of the task's commit.
+- **The branch was reported from memory.** `:build` checks it at the start instead of
+  trusting what was seen earlier in the session.
+
+### Removed
+
+- **The commit-stamp hook.** After every `git commit` it wrote the commit and the elapsed
+  hours into `.koud/state.json`, which nothing read, and which left that file modified
+  after every commit. One fewer process on every shell command, too.
+
+### Changed
+
+- `:architect` recommends keeping its files inside `.koud/` when the brief covers one
+  piece of work rather than the whole product, or when a name collides.
+- `:init` proposes adding `.koud/` to the ignore file of a formatter that runs over the
+  whole repository, after asking.
+- The README says plainly that in auto mode the consent hook produces no prompt.
+
 ## [0.3.0] - 2026-11-11
 
 Driven by the first run from `:brief` to `:build` on an existing monorepo. The workflow

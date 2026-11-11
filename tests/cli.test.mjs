@@ -641,6 +641,24 @@ test('spec.mjs apply writes only under .koud/specs and creates no openspec folde
   });
 });
 
+test('spec.mjs apply says which non-functional requirements get no task', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForSpec(dir);
+    const file = path.join(dir, '.koud', 'requirements.json');
+    const reqs = JSON.parse(await readFile(file, 'utf8'));
+    const { stdout: before } = await run('node', [path.join(scripts, 'spec.mjs'), 'apply', dir, '--dry-run']);
+    const count = (reqs.non_functional ?? []).length;
+    if (count > 0) {
+      assert.match(before, new RegExp(`${count} non-functional requirement\\(s\\) have no task`));
+      assert.match(before, /move it\s+into a feature as a requirement with a scenario/);
+    }
+    reqs.non_functional = [];
+    await writeFile(file, JSON.stringify(reqs), 'utf8');
+    const { stdout: after } = await run('node', [path.join(scripts, 'spec.mjs'), 'apply', dir, '--dry-run']);
+    assert.doesNotMatch(after, /have no task/);
+  });
+});
+
 test('spec.mjs apply --dry-run reports a stale spec folder as left in place', async () => {
   await withTmpDir(async (dir) => {
     await seedForSpec(dir);
@@ -818,7 +836,32 @@ test('architect.mjs apply --dry-run names the files outside .koud as the user\'s
     await seedForArchitect(dir);
     const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
     assert.match(stdout, /Outside \.koud\/ \(7\)/);
-    assert.match(stdout, /> AGENTS\.md/);
+    assert.match(stdout, /\+ \(new\) AGENTS\.md/);
+  });
+});
+
+// Second real run, on a macOS disk: the project already had docs/ARCHITECTURE.md, the
+// phase wanted docs/architecture.md, and on a case-insensitive volume those are one file.
+test('architect.mjs names a project file it would replace under another letter case', async () => {
+  await withTmpDir(async (dir) => {
+    await seedForArchitect(dir);
+    await mkdir(path.join(dir, 'docs'), { recursive: true });
+    await writeFile(path.join(dir, 'docs', 'ARCHITECTURE.md'), '# The whole product\n', 'utf8');
+
+    const { stdout } = await run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir, '--dry-run']);
+    assert.match(stdout, /!! \(would replace docs\/ARCHITECTURE\.md — the same name in another case\) docs\/architecture\.md/);
+    assert.match(stdout, /recommend --koud-only/);
+
+    await assert.rejects(
+      run('node', [path.join(scripts, 'architect.mjs'), 'apply', dir]),
+      (err) => {
+        assert.equal(err.code, 3);
+        assert.match(err.stderr, /!! \(would replace docs\/ARCHITECTURE\.md/);
+        assert.match(err.stderr, /Recommend --koud-only unless the user wants that file replaced/);
+        return true;
+      },
+    );
+    assert.equal(await readFile(path.join(dir, 'docs', 'ARCHITECTURE.md'), 'utf8'), '# The whole product\n');
   });
 });
 

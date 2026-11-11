@@ -20,7 +20,8 @@
  */
 import { mkdir, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { KOUD_DIR, SPECS_DIR, statePath, timestamp } from './paths.mjs';
+import { KOUD_DIR, SPECS_DIR, FEATURES_DIR, statePath, timestamp } from './paths.mjs';
+import { OUT_DIR } from './project-writes.mjs';
 import { readState, writeState, migrateStateFile, readMigratedState } from './state.mjs';
 import { openBackupSet, existingPaths } from './backup.mjs';
 import { validateRequirements } from './requirements-schema.mjs';
@@ -53,7 +54,14 @@ export async function applySpec(
     throw new Error(`no state at ${statePath(root)} — run /koud:init first`);
   }
 
-  const triad = emitKiro(requirements, architecture);
+  // tasks.md names the Gherkin file each feature must satisfy. A project that kept koud's
+  // files inside .koud/ has them under .koud/out/features/, and a task list pointing at a
+  // features/ folder that does not exist sends the build looking for nothing.
+  const inProject = await readdir(path.join(root, FEATURES_DIR)).catch(() => null);
+  const inKoud = await readdir(path.join(root, OUT_DIR, FEATURES_DIR)).catch(() => null);
+  const featuresDir = inProject === null && inKoud !== null ? `${OUT_DIR}/${FEATURES_DIR}` : FEATURES_DIR;
+
+  const triad = emitKiro(requirements, architecture, { featuresDir });
 
   // emitKiro() numbers folders by position in the must-have list, so reprioritising features
   // between two applies renumbers every folder after the change. A feature's identity is its

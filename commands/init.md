@@ -36,6 +36,11 @@ Declining both is a normal answer, and the right one on a repository shared with
 who have not agreed to these files: the session-start hook already tells Claude Code where
 the phase state is, so nothing later depends on them.
 
+**A formatter or linter that runs over the whole repository** (Prettier, Biome, markdownlint
+in CI) will also run over `.koud/`, whose files are generated and not written to the
+project's style. If you find such a check, tell the user and propose adding `.koud/` to
+its ignore file. That file is the project's: ask before touching it.
+
 **Initializing git** (only proposed when the project is not already a git repo). There
 is no file content to show here. Explain that the project isn't currently a git
 repository, and that phase state benefits from being versioned — so the user can switch

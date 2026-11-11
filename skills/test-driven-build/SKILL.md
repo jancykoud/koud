@@ -17,9 +17,11 @@ same five steps, in order, with nothing skipped:
    ask for.
 4. **Suite.** Run the whole test suite, not just the new test. A green new test over a red
    suite is a regression, not progress.
-5. **Commit.** One commit per task, its message naming the task, staging by name only the
-   files the task changed — never an uncommitted change that was already in the worktree.
-   Then tick the box in `tasks.md`.
+5. **Tick, then commit.** Tick the task's boxes in `tasks.md`, then make one commit for
+   the task, its message naming it, staging by name only the files the task changed and
+   that `tasks.md` — never an uncommitted change that was already in the worktree. The
+   box and the code it describes travel together, so a checkout of any commit is honest
+   about what is done.
 
 ## Prove tasks
 
@@ -29,7 +31,7 @@ fails" step, because there is nothing to implement:
 1. **Test.** Write the test the task names, or point to the existing one that already
    covers it — a second test for the same behaviour is noise.
 2. **Run it.** It is expected to pass at once.
-3. **Suite**, then **commit**, then tick the box.
+3. **Suite**, then tick the box and **commit**.
 
 If the test fails, the project does not do what it was believed to do. That is a finding,
 not a task: stop, show the user the failing output, and let them decide whether it becomes

@@ -21,7 +21,7 @@ export function toEars(scenario) {
 
 const pad = (n) => String(n).padStart(4, '0');
 
-export function emitKiro(requirements, architecture) {
+export function emitKiro(requirements, architecture, { featuresDir = 'features' } = {}) {
   const out = new Map();
   const musts = (requirements.features ?? []).filter((f) => f.priority === 'must');
 
@@ -29,7 +29,7 @@ export function emitKiro(requirements, architecture) {
     out.set(`${pad(i + 1)}-${f.slug}`, {
       'requirements.md': kiroRequirements(f),
       'design.md': kiroDesign(f, architecture),
-      'tasks.md': kiroTasks(f),
+      'tasks.md': kiroTasks(f, featuresDir),
     });
   }
   return out;
@@ -154,7 +154,7 @@ function kiroDesign(f, architecture) {
   return out.join('\n');
 }
 
-function kiroTasks(f) {
+function kiroTasks(f, featuresDir = 'features') {
   const out = [];
   out.push(`# ${f.title} — Tasks`);
   out.push('');
@@ -192,7 +192,7 @@ function kiroTasks(f) {
   }
   out.push('## Validation');
   out.push('');
-  out.push(`- [ ] Every scenario in \`features/${f.slug}.feature\` passes`);
+  out.push(`- [ ] Every scenario in \`${featuresDir}/${f.slug}.feature\` passes`);
   out.push('- [ ] No invariant in `design.md` is bypassed');
   out.push('');
   return out.join('\n');

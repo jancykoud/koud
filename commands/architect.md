@@ -43,6 +43,15 @@ anything outside those markers is kept. Then ask one question with two answers:
   nothing in the project moves. The right answer for a repository shared with people who
   have not agreed to these files.
 
+Recommend **no** in two cases, and say why:
+
+- The preview marks a file `!!` — it would replace a file the project already has under
+  another letter case (`docs/ARCHITECTURE.md` for `docs/architecture.md`). On macOS and
+  Windows those are the same file.
+- The brief's `scope` is one piece of work, not the whole product. `docs/architecture.md`
+  and the project-wide `AGENTS.md` invariants would then describe a part as if it were
+  the whole.
+
 Do not apply before the answer. Running the apply without a flag is refused by the script
 (exit code 3, nothing written) — that is the guard working, not an error to work around.
 

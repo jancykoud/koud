@@ -47,6 +47,11 @@ gives, write the scenario without the number ("the practitioner's fee", not "15 
 or ask. A value taken from a seed file or a test fixture is a test value: say so, do not
 present it as a fact about the product.
 
+**A non-functional requirement is a check, not a behaviour.** "The SDK version is pinned",
+"no new paid service": a reviewer verifies those, and `:spec` gives them no task. Anything
+a person could observe the system doing — a daily limit, a fallback, a refusal — is a
+functional requirement: put it in a feature, with a scenario, or nothing will build it.
+
 ## Step 5 — Flag the demo moment
 
 Exactly one feature is the demo moment: the one scenario that, shown in thirty seconds,

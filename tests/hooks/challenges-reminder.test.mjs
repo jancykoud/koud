@@ -12,9 +12,8 @@ const TRANSCRIPT_CLEAN = fileURLToPath(new URL('../fixtures/challenges-transcrip
 // Matches the first line's "timestamp" field in both fixtures above.
 const FIXTURE_SESSION_START = Date.parse('2026-08-30T10:00:00.000Z');
 
-// The Stop hook's stdin envelope -- like progress-stamp.mjs's PostToolUse payload, this
-// repo has no existing hook that reads stdin, so there's no established test helper for
-// it. execFile's promisified form can't pipe stdin, so this spawns directly.
+// The Stop hook reads its envelope on stdin. execFile's promisified form can't pipe
+// stdin, so this spawns directly.
 function runHook(hook, { cwd, input }) {
   return new Promise((resolve, reject) => {
     const child = spawn('node', [hook], { cwd });

@@ -35,7 +35,7 @@ test('every hook script on disk is registered, so none is dead code', async () =
 
 test('the events are exactly the ones the plugin documents', async () => {
   const cfg = await config();
-  assert.deepEqual(Object.keys(cfg.hooks).sort(), ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop']);
+  assert.deepEqual(Object.keys(cfg.hooks).sort(), ['PreToolUse', 'SessionStart', 'Stop']);
 });
 
 test('the secrets guard runs before the file tools and Bash', async () => {

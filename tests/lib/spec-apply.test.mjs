@@ -307,3 +307,32 @@ test('a specs path that is not a directory surfaces its error rather than being 
     );
   });
 });
+
+// Second real run: the user kept koud's files inside .koud/, and every tasks.md still
+// pointed at a features/ folder that did not exist.
+test('tasks.md points at the Gherkin where it really is', async () => {
+  const tasksOf = async (root) =>
+    readFile(path.join(root, '.koud/specs/0001-shared-care-record/tasks.md'), 'utf8');
+
+  await withTmpDir(async (root) => {
+    await seeded(root);
+    await mkdir(path.join(root, '.koud/out/features'), { recursive: true });
+    await applySpec(root, { ...(await payloads()) });
+    assert.match(await tasksOf(root), /`\.koud\/out\/features\/shared-care-record\.feature`/);
+  });
+
+  await withTmpDir(async (root) => {
+    await seeded(root);
+    await mkdir(path.join(root, 'features'), { recursive: true });
+    await mkdir(path.join(root, '.koud/out/features'), { recursive: true });
+    await applySpec(root, { ...(await payloads()) });
+    assert.match(await tasksOf(root), /`features\/shared-care-record\.feature`/,
+      'the project\'s own features/ wins when both exist');
+  });
+
+  await withTmpDir(async (root) => {
+    await seeded(root);
+    await applySpec(root, { ...(await payloads()) });
+    assert.match(await tasksOf(root), /`features\/shared-care-record\.feature`/);
+  });
+});

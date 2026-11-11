@@ -59,7 +59,7 @@ the top level. The plugin needs Node.js 20 or later and has no dependencies to i
 | `/koud:architect` | Designs the system — or, on an existing project, describes the one the code already has, gaps included: architecture, data model, three diagram formats and the `AGENTS.md` invariants, all rendered from one validated payload. |
 | `/koud:requirements` | Turns the architecture into FR ids with acceptance criteria, a test matrix and executable Gherkin scenarios. On an existing project each requirement says whether it is already delivered or still to build. |
 | `/koud:spec` | Turns requirements into per-feature specs (requirements, design, tasks) under `.koud/specs/`. Runs no external tool. |
-| `/koud:build [--feature <FR-id>]` | Works the must-have features one at a time: new behaviour test-first, existing behaviour proven by a test that is expected to pass, `:check` after each feature. |
+| `/koud:build [--feature <FR-id>] [--continuous]` | Works the must-have features: new behaviour test-first, existing behaviour proven by a test that is expected to pass, `:check` after each feature. Starts by agreeing on the smallest end-to-end slice. Stops after each task, or with `--continuous` only when something needs you. |
 | `/koud:check` | Verifies with `file:line` evidence that the code really uses the technology the brief requires and none it forbids. Safe to run any time; does not gate. |
 | `/koud:ship` | Proposes a deployment plan and stops; once approved, writes Dockerfiles, Terraform and CI, deploys, and verifies every URL with a real request before the gate. |
 | `/koud:review` | Runs `/code-review` and an architecture-level reviewer, and merges both into a validated `review.json`. Refuses the gate while any finding is `blocking`. |
@@ -104,6 +104,10 @@ The scripts enforce this, not just the instructions: an apply that would write o
 `.koud/` without `--allow-project-writes` or `--koud-only` exits with code 3 and writes
 nothing. The same holds for replacing a brief that already exists (`--replace`).
 
+A file the project already has under another letter case — `docs/ARCHITECTURE.md` when
+the phase wants `docs/architecture.md` — is marked `!!` in the preview. On macOS and
+Windows those are the same file, so "yes" would replace your document.
+
 `.koud/backups/` holds a verbatim copy of every file a phase replaced. It is excluded from
 Git by a rule in `.koud/.gitignore`, because a backup can contain an uncommitted edit you
 never meant to publish. To keep the whole of `.koud/` out of a shared repository, add
@@ -134,7 +138,6 @@ These are mechanical, not conventions:
 | Session start | Injects the project, track, deadline, success criteria, approved phases, next phase and required technology. Silent in a project with no `.koud/`. |
 | Before a file tool or a shell command | Denies reading secrets files (`.env`, private keys, keystores) and asks before editing them or running a command that names them. Templates such as `.env.example` pass. Only acts in a project with a `.koud/` directory. |
 | Before a shell command | Turns three kinds of command into a permission prompt: an apply that writes outside `.koud/`, an apply that replaces the brief, and a deploy (`vercel deploy`, `gcloud run deploy`, `railway up`, `terraform apply`, `prisma migrate deploy` and the like). Only acts in a project with a `.koud/` directory. |
-| After a `git commit` | Stamps the commit and the elapsed time into the state. |
 | Stop | When the session hit real failures and `challenges.md` was not updated, lists up to three of them and points at `/koud:log`. |
 
 Every hook is written to never crash a session: on a corrupt state it prints one line and
@@ -142,16 +145,22 @@ exits cleanly.
 
 ## Status and limits
 
-This is version 0.3.0.
+This is version 0.4.0.
 
-- **Run once end to end, short of deployment.** `:init` through `:build` have run in Claude
-  Code on one existing monorepo (an API, a web app and a mobile app); `:build` was run for
-  one requirement. `:ship` and `:review` have only been exercised through the test suite
-  and from the command line with example payloads. The consent prompts added in 0.3.0 are
-  covered by tests but have not yet been seen in a live session.
-- **The prompts depend on the permission mode.** The hooks answer "ask". In a mode where
-  Claude Code approves tool calls on its own, do not rely on being asked: the scripts'
-  refusal without a consent flag still holds, the prompt may not.
+- **Run on two real projects, short of deployment.** `:init` through `:build` have run in
+  Claude Code on an existing monorepo and on an existing Next.js and Supabase application,
+  the second time to add a new piece of work. A project started from an empty folder has
+  not been tried yet, and neither have `:ship` and `:review`, which have only been
+  exercised through the test suite and from the command line with example payloads.
+- **In auto mode there is no permission prompt.** The consent hook answers "ask"; when
+  Claude Code is approving tool calls on its own, it approves that too. What still holds
+  in every mode: the scripts refuse to write outside `.koud/` or replace a brief without
+  a flag recording the decision, and the commands tell the assistant to ask you in the
+  conversation first. For `:build` and `:ship`, leave auto mode.
+- **`--continuous` is an instruction, not a mechanism.** It tells the assistant when to
+  stop; nothing in the scripts enforces it. The standing rules of `:build` (no push, no
+  deploy, no remote migration, never on the default branch) are instructions too, backed
+  only by the deploy prompt of the consent hook.
 - **The frontend and backend skills are written around Next.js and FastAPI**, and cite one
   reference project. On an existing project the architect is told to describe the code and
   treat those skills as vocabulary; on a new project with another stack they only partly
@@ -161,8 +170,9 @@ This is version 0.3.0.
 - **The guards are tripwires, not a sandbox.** They catch the ordinary cases; a command
   built to evade them will.
 
-Planned next: stack-neutral architecture skills, a browser test loop, a security audit
-phase, and a map of what can be automated by a script, a workflow or an agent.
+Planned next: questions specific to a project that contains an AI agent (narrow tools, an
+evaluation set, manipulation attempts, a cost ceiling), stack-neutral architecture skills,
+a browser test loop and a security audit phase.
 
 ## Development
 

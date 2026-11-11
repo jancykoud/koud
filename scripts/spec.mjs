@@ -64,6 +64,17 @@ if (subcommand === 'apply') {
       for (const s of skipped) console.log(`  ~ ${s}`);
     }
 
+    // Tasks are generated from the requirements of a feature. A non-functional requirement
+    // gets none, which is right for a review check and wrong for a behaviour: say so, or a
+    // limit or a fallback filed there is silently never built.
+    const nfrs = requirements.non_functional ?? [];
+    if (nfrs.length > 0) {
+      console.log(`\n${nfrs.length} non-functional requirement(s) have no task — they are checks for the review:`);
+      for (const n of nfrs) console.log(`  - ${n.id ?? '?'} ${n.statement ?? ''}`.trimEnd());
+      console.log('  If one describes behaviour someone could observe (a limit, a fallback, a refusal), move it');
+      console.log('  into a feature as a requirement with a scenario, or nothing will build it.');
+    }
+
     if (!dryRun) {
       console.log('\nPhase "spec" is now awaiting_approval. Show what landed, then ask.');
     }
